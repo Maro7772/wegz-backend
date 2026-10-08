@@ -8,6 +8,7 @@ import sectionRoutes from "./routes/section.routes.js";
 import publicRoutes from "./routes/public.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
+import themeRoutes from "./routes/theme.routes.js";
 
 const app = express();
 app.use(cors());
@@ -18,6 +19,7 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/api/auth", authRoutes);
+app.use("/api/admin/themes", themeRoutes);
 app.use("/api/admin/dashboard", dashboardRoutes);
 app.use("/api/admin/sections", sectionRoutes);
 app.use("/api/admin/upload", uploadRoutes);

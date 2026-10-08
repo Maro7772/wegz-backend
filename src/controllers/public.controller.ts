@@ -7,6 +7,7 @@ import { Info2 } from "../models/sections/info2.model.js";
 import { Testimonials } from "../models/sections/testimonials.model.js";
 import { Contact } from "../models/sections/contact.model.js";
 import { Footer } from "../models/sections/footer.model.js";
+import { Theme } from "../models/Theme.js";
 
 export const getLanding = async (_req: Request, res: Response) => {
   try {
@@ -19,6 +20,7 @@ export const getLanding = async (_req: Request, res: Response) => {
       testimonials,
       contact,
       footer,
+      activeTheme,
     ] = await Promise.all([
       Announcement.findOne({ isVisible: true }).lean(),
       Header.findOne({ isVisible: true }).lean(),
@@ -28,6 +30,7 @@ export const getLanding = async (_req: Request, res: Response) => {
       Testimonials.findOne({ isVisible: true }).lean(),
       Contact.findOne({ isVisible: true }).lean(),
       Footer.findOne({ isVisible: true }).lean(),
+      Theme.findOne({ isActive: true }).lean(), // ← بنجيب الثيم النشط
     ]);
 
     // نفلتر اللينكات المفعّلة بس جوه الـ header، ومرتبة بالـ order
@@ -40,7 +43,7 @@ export const getLanding = async (_req: Request, res: Response) => {
         }
       : null;
 
-    // وكمان الـ footer links + socials مرتبين
+    // وكمان الـ footer links مرتبين بالـ order
     const cleanedFooter = footer
       ? {
           ...footer,
@@ -51,6 +54,7 @@ export const getLanding = async (_req: Request, res: Response) => {
       : null;
 
     res.json({
+      theme: activeTheme?.key || "theme1", // ← fallback لو مفيش ثيم نشط
       sections: {
         announcement,
         header: cleanedHeader,
