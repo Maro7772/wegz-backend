@@ -1,3 +1,4 @@
+import { Model } from "mongoose";
 import { Announcement } from "../models/sections/announcement.model.js";
 import { Header } from "../models/sections/header.model.js";
 import { Hero } from "../models/sections/hero.model.js";
@@ -7,7 +8,7 @@ import { Testimonials } from "../models/sections/testimonials.model.js";
 import { Contact } from "../models/sections/contact.model.js";
 import { Footer } from "../models/sections/footer.model.js";
 
-export const sectionMap = {
+export const sectionMap: Record<string, Model<any>> = {
   announcement: Announcement,
   header: Header,
   hero: Hero,
@@ -16,7 +17,7 @@ export const sectionMap = {
   testimonials: Testimonials,
   contact: Contact,
   footer: Footer,
-} as const;
+};
 
 export type SectionType = keyof typeof sectionMap;
 
