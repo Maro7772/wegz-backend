@@ -26,24 +26,20 @@ export const getThemeById = async (req: Request, res: Response) => {
 // POST /api/admin/themes  → إنشاء ثيم جديد
 export const createTheme = async (req: Request, res: Response) => {
   try {
-    const { key, name, description } = req.body;
+    const { name, description } = req.body;
 
-    if (!key || !name) {
-      return res.status(400).json({ message: "key and name are required" });
+    if ( !name) {
+      return res.status(400).json({ message: " name are required" });
     }
-
-    const normalizedKey = key.toLowerCase().trim();
-
-    const exists = await Theme.findOne({ key: normalizedKey });
+    const exists = await Theme.findOne({name});
     if (exists) {
-      return res.status(409).json({ message: "Theme key already exists" });
+      return res.status(409).json({ message: "Theme name already exists" });
     }
 
     // لو دي أول ثيمة → نخليها active
     const count = await Theme.countDocuments();
 
     const theme = await Theme.create({
-      key: normalizedKey,
       name,
       description: description || "",
       isActive: count === 0,
@@ -62,11 +58,22 @@ export const updateTheme = async (req: Request, res: Response) => {
     const { name, description } = req.body;
 
     const updates: any = {};
-    if (name !== undefined) updates.name = name;
+    if (name !== undefined) updates.name = name.trim();
     if (description !== undefined) updates.description = description;
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ message: "No fields to update" });
+    }
+
+    // ⚠️ التحقق من الاسم
+    if (updates.name) {
+      const conflict = await Theme.findOne({
+        _id: { $ne: id },          // مش نفس الـ document
+        name: updates.name,
+      });
+      if (conflict) {
+        return res.status(409).json({ message: "Theme name already exists" });
+      }
     }
 
     const theme = await Theme.findByIdAndUpdate(id, updates, {

@@ -1,7 +1,6 @@
 import { Schema, model, Document } from "mongoose";
 
 export interface ITheme extends Document {
-  key: string;
   name: string;
   description: string;
   isActive: boolean;
@@ -9,14 +8,7 @@ export interface ITheme extends Document {
 
 const ThemeSchema = new Schema<ITheme>(
   {
-    key: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-      lowercase: true,
-    },
-    name: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true,unique:true },
     description: { type: String, default: "" },
     isActive: { type: Boolean, default: false },
   },

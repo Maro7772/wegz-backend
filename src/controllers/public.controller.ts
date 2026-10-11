@@ -54,7 +54,7 @@ export const getLanding = async (_req: Request, res: Response) => {
       : null;
 
     res.json({
-      theme: activeTheme?.key || "theme1", // ← fallback لو مفيش ثيم نشط
+      theme: activeTheme?.name,
       sections: {
         announcement,
         header: cleanedHeader,
