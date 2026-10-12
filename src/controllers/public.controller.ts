@@ -54,7 +54,8 @@ export const getLanding = async (_req: Request, res: Response) => {
       : null;
 
     res.json({
-      theme: activeTheme?.name,
+      theme: activeTheme?.name || "Theme 1",
+      mode: activeTheme?.activeMode || "light",
       sections: {
         announcement,
         header: cleanedHeader,

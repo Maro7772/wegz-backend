@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { Theme } from "../models/Theme.js";
+import { AVAILABLE_MODES, Theme } from "../models/Theme.js";
 
 // GET /api/admin/themes  → كل الثيمات
 export const getAllThemes = async (_req: Request, res: Response) => {
@@ -26,23 +26,25 @@ export const getThemeById = async (req: Request, res: Response) => {
 // POST /api/admin/themes  → إنشاء ثيم جديد
 export const createTheme = async (req: Request, res: Response) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, availableModes } = req.body;
 
-    if ( !name) {
-      return res.status(400).json({ message: " name are required" });
+    if (!name || name.trim() === "") {
+      return res.status(400).json({ message: "name is required" });
     }
-    const exists = await Theme.findOne({name});
+
+    const exists = await Theme.findOne({ name: name.trim() });
     if (exists) {
       return res.status(409).json({ message: "Theme name already exists" });
     }
 
-    // لو دي أول ثيمة → نخليها active
     const count = await Theme.countDocuments();
 
     const theme = await Theme.create({
-      name,
+      name: name.trim(),
       description: description || "",
       isActive: count === 0,
+      availableModes: availableModes || ["dark", "light"],
+      activeMode: "light",
     });
 
     res.status(201).json({ data: theme });
@@ -68,7 +70,7 @@ export const updateTheme = async (req: Request, res: Response) => {
     // ⚠️ التحقق من الاسم
     if (updates.name) {
       const conflict = await Theme.findOne({
-        _id: { $ne: id },          // مش نفس الـ document
+        _id: { $ne: id }, // مش نفس الـ document
         name: updates.name,
       });
       if (conflict) {
@@ -100,6 +102,41 @@ export const activateTheme = async (req: Request, res: Response) => {
     // كل الثيمات false، واللي عايزينه true
     await Theme.updateMany({}, { isActive: false });
     theme.isActive = true;
+    await theme.save();
+
+    res.json({ data: theme });
+  } catch (err: any) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// PATCH /api/admin/themes/:id/mode  → تغيير الوضع
+export const changeMode = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { mode } = req.body;
+
+    if (!mode) {
+      return res.status(400).json({ message: "mode is required" });
+    }
+
+    if (!AVAILABLE_MODES.includes(mode)) {
+      return res.status(400).json({
+        message: `Invalid mode. Available: ${AVAILABLE_MODES.join(", ")}`,
+      });
+    }
+
+    const theme = await Theme.findById(id);
+    if (!theme) return res.status(404).json({ message: "Theme not found" });
+
+    // نتأكد إن الـ mode متاح للثيم ده
+    if (!theme.availableModes.includes(mode)) {
+      return res.status(400).json({
+        message: `Mode "${mode}" not available for this theme. Available: ${theme.availableModes.join(", ")}`,
+      });
+    }
+
+    theme.activeMode = mode;
     await theme.save();
 
     res.json({ data: theme });

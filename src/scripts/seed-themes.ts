@@ -7,17 +7,27 @@ const run = async () => {
   await connectDB();
 
   const themes = [
-    { key: "theme1", name: "Theme 1", isActive: true },
-    { key: "theme2", name: "Theme 2", isActive: false },
+    {
+      name: "Theme 1",
+      isActive: true,
+      availableModes: ["dark", "light"],
+      activeMode: "light",
+    },
+    {
+      name: "Theme 2",
+      isActive: false,
+      availableModes: ["dark", "light"],
+      activeMode: "light",
+    },
   ];
 
   for (const t of themes) {
-    const exists = await Theme.findOne({ key: t.key });
+    const exists = await Theme.findOne({ name: t.name });
     if (!exists) {
       await Theme.create(t);
-      console.log(`✅ Created ${t.key}`);
+      console.log(`✅ Created ${t.name}`);
     } else {
-      console.log(`⚠️ ${t.key} already exists`);
+      console.log(`⚠️ ${t.name} already exists`);
     }
   }
 

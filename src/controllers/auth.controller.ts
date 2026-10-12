@@ -29,7 +29,6 @@ export const login = async (req: Request, res: Response) => {
       user: {
         id: user._id,
         name: user.name,
-        username: user.username,
         email: user.email,
         phone: user.phone,
         role: user.role,
@@ -56,11 +55,10 @@ export const me = async (req: any, res: Response) => {
 // PATCH /api/auth/me
 export const updateMe = async (req: any, res: Response) => {
   try {
-    const { name, username, email, phone } = req.body;
+    const { name, email, phone } = req.body;
     const updates: any = {};
 
     if (name !== undefined) updates.name = name;
-    if (username !== undefined) updates.username = username;
     if (email !== undefined) updates.email = email.toLowerCase();
     if (phone !== undefined) updates.phone = phone;
 
@@ -68,20 +66,15 @@ export const updateMe = async (req: any, res: Response) => {
       return res.status(400).json({ message: "No fields to update" });
     }
 
-    // نتأكد إن الـ username/email مش مستخدمين
-    if (updates.username || updates.email) {
+    // نتأكد إن الـ email مش مستخدمين
+    if (updates.email) {
       const conflict = await User.findOne({
         _id: { $ne: req.user.id },
-        $or: [
-          updates.username ? { username: updates.username } : null,
-          updates.email ? { email: updates.email } : null,
-        ].filter(Boolean) as any[],
+        email: updates.email,
       });
 
       if (conflict) {
-        return res
-          .status(409)
-          .json({ message: "Username or email already in use" });
+        return res.status(409).json({ message: "ُEmail already in use" });
       }
     }
 

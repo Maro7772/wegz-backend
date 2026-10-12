@@ -5,6 +5,7 @@ import {
   createTheme,
   updateTheme,
   activateTheme,
+  changeMode, // ← جديد
   deleteTheme,
 } from "../controllers/theme.controller.js";
 import { requireAuth } from "../middlewares/auth.middleware.js";
@@ -18,6 +19,7 @@ router.get("/:id", getThemeById);
 router.post("/", createTheme);
 router.patch("/:id", updateTheme);
 router.patch("/:id/activate", activateTheme);
+router.patch("/:id/mode", changeMode); // ← جديد
 router.delete("/:id", deleteTheme);
 
 export default router;

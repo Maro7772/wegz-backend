@@ -8,7 +8,6 @@ const run = async () => {
 
   const adminData = {
     name: "Admin",
-    username: "admin",
     email: "admin@gmail.com",
     phone: "01000000000",
     password: "123456",
