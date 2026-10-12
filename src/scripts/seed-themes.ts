@@ -1,12 +1,17 @@
 import "dotenv/config";
 import mongoose from "mongoose";
 import { connectDB } from "../config/db.js";
-import { Theme } from "../models/Theme.js";
+import { Theme, AVAILABLE_MODES, type ModeKey } from "../models/Theme.js";
 
 const run = async () => {
   await connectDB();
 
-  const themes = [
+  const themes: Array<{
+    name: string;
+    isActive: boolean;
+    availableModes: ModeKey[];
+    activeMode: ModeKey;
+  }> = [
     {
       name: "Theme 1",
       isActive: true,
