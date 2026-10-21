@@ -1,6 +1,11 @@
 import { Request, Response } from "express";
+import bcrypt from "bcryptjs";
 import { User } from "../models/User.js";
 import { signToken } from "../utils/jwt.js";
+
+function isBcryptHash(value: string): boolean {
+  return /^\$2[aby]\$\d{2}\$/.test(value);
+}
 
 export const login = async (req: Request, res: Response) => {
   try {
@@ -10,8 +15,23 @@ export const login = async (req: Request, res: Response) => {
     }
 
     const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user || user.password !== password) {
+    if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const stored = user.password || "";
+    const valid = isBcryptHash(stored)
+      ? await bcrypt.compare(password, stored)
+      : stored === password;
+
+    if (!valid) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // ترقية تلقائية للباسوردات القديمة المخزنة كنص صريح
+    if (!isBcryptHash(stored)) {
+      user.password = await bcrypt.hash(password, 10);
+      await user.save();
     }
 
     if (!user.isActive) {
@@ -115,11 +135,16 @@ export const changePassword = async (req: any, res: Response) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (user.password !== currentPassword) {
+    const stored = user.password || "";
+    const valid = isBcryptHash(stored)
+      ? await bcrypt.compare(currentPassword, stored)
+      : stored === currentPassword;
+
+    if (!valid) {
       return res.status(401).json({ message: "Current password is incorrect" });
     }
 
-    user.password = newPassword;
+    user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
 
     res.json({ message: "Password updated successfully" });

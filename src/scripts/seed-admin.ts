@@ -1,5 +1,6 @@
 import "dotenv/config";
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 import { connectDB } from "../config/db.js";
 import { User } from "../models/User.js";
 
@@ -10,7 +11,7 @@ const run = async () => {
     name: "Admin",
     email: "admin@gmail.com",
     phone: "01000000000",
-    password: "123456",
+    password: await bcrypt.hash("123456", 10),
     role: "admin" as const,
     isActive: true,
   };
