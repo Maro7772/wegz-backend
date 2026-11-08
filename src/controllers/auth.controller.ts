@@ -7,6 +7,66 @@ function isBcryptHash(value: string): boolean {
   return /^\$2[aby]\$\d{2}\$/.test(value);
 }
 
+// POST /api/auth/register
+export const register = async (req: Request, res: Response) => {
+  try {
+    const { name, email, phone, password } = req.body;
+
+    if (!name || !email || !phone || !password) {
+      return res
+        .status(400)
+        .json({ message: "name, email, phone and password required" });
+    }
+
+    if (typeof password !== "string" || password.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters" });
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+
+    const exists = await User.findOne({ email: normalizedEmail });
+    if (exists) {
+      return res.status(409).json({ message: "Email already in use" });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+
+    // الـ role دايماً "user" - مش بناخده من الـ body عشان محدش يسجل نفسه admin
+    const user = await User.create({
+      name,
+      email: normalizedEmail,
+      phone,
+      password: hashed,
+      role: "user",
+    });
+
+    const token = signToken({
+      id: user._id,
+      email: user.email,
+      role: user.role,
+    });
+
+    res.status(201).json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+    });
+  } catch (err: any) {
+    // لو حصل race condition على الـ unique index
+    if (err?.code === 11000) {
+      return res.status(409).json({ message: "Email already in use" });
+    }
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;

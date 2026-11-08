@@ -4,12 +4,14 @@ import {
   me,
   updateMe,
   changePassword,
+  register,
 } from "../controllers/auth.controller.js";
 import { requireAuth } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
 router.post("/login", login);
+router.post("/register", register);
 
 router.get("/me", requireAuth, me);
 router.patch("/me", requireAuth, updateMe);

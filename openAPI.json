@@ -1,0 +1,1153 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Wegz Backend API",
+    "description": "API كامل للاندنج بيدج - Auth, Sections, Themes, Upload, Dashboard, Public Landing",
+    "version": "1.2.0"
+  },
+  "servers": [
+    { "url": "https://bcknd.wegz.org", "description": "Production" },
+    { "url": "http://localhost:3000", "description": "Local Development" }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "تسجيل الدخول والتسجيل والبروفايل" },
+    { "name": "Sections", "description": "إدارة السكاشن (Admin)" },
+    { "name": "Upload", "description": "رفع الصور" },
+    { "name": "Dashboard", "description": "لوحة التحكم" },
+    { "name": "Themes", "description": "إدارة الثيمات" },
+    { "name": "Public", "description": "Endpoints عامة" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "6ac7532f79c7d12f1bc3cc99" },
+          "name": { "type": "string", "example": "Admin" },
+          "email": { "type": "string", "example": "admin@gmail.com" },
+          "phone": { "type": "string", "example": "01000000000" },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "user"],
+            "example": "admin"
+          },
+          "isActive": { "type": "boolean", "example": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["name", "email", "phone", "password"],
+        "properties": {
+          "name": { "type": "string", "example": "Ahmed Ali" },
+          "email": { "type": "string", "example": "ahmed@gmail.com" },
+          "phone": { "type": "string", "example": "01000000000" },
+          "password": { "type": "string", "minLength": 6, "example": "123456" }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "example": "admin@gmail.com" },
+          "password": { "type": "string", "example": "123456" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "email": { "type": "string" },
+              "phone": { "type": "string" },
+              "role": { "type": "string" }
+            }
+          }
+        }
+      },
+      "UpdateMeRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "email": { "type": "string" },
+          "phone": { "type": "string" }
+        }
+      },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "required": ["currentPassword", "newPassword"],
+        "properties": {
+          "currentPassword": { "type": "string", "minLength": 6 },
+          "newPassword": { "type": "string", "minLength": 6 }
+        }
+      },
+      "Announcement": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "text": { "type": "string", "example": "Welcome to our store" },
+          "bgColor": { "type": "string", "example": "#000000" },
+          "textColor": { "type": "string", "example": "#ffffff" },
+          "isVisible": { "type": "boolean", "example": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "HeaderLink": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "label": { "type": "string", "example": "Home" },
+          "url": { "type": "string", "example": "/" },
+          "isActive": { "type": "boolean", "example": true },
+          "order": { "type": "number", "example": 1 }
+        }
+      },
+      "Header": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "brandName": { "type": "string", "example": "MyBrand" },
+          "logo": { "type": "string", "example": "/uploads/logo.png" },
+          "bgColor": { "type": "string", "example": "#ffffff" },
+          "textColor": { "type": "string", "example": "#000000" },
+          "links": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/HeaderLink" }
+          },
+          "isVisible": { "type": "boolean", "example": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Hero": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "title": { "type": "string", "example": "Welcome" },
+          "subtitle": { "type": "string", "example": "Best service ever" },
+          "ctaText": { "type": "string", "example": "Get Started" },
+          "ctaUrl": { "type": "string", "example": "/contact" },
+          "ctaColor": { "type": "string", "example": "#ffffff" },
+          "image": { "type": "string", "example": "/uploads/hero.jpg" },
+          "bgColor": { "type": "string", "example": "#ffffff" },
+          "textColor": { "type": "string", "example": "#000000" },
+          "isVisible": { "type": "boolean", "example": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "InfoItem": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "icon": { "type": "string", "example": "/uploads/icon.png" },
+          "title": { "type": "string", "example": "Fast Delivery" },
+          "description": {
+            "type": "string",
+            "example": "We deliver within 24 hours"
+          },
+          "order": { "type": "number", "example": 1 }
+        }
+      },
+      "Info": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "heading": { "type": "string", "example": "Our Features" },
+          "subheading": { "type": "string", "example": "Why choose us" },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/InfoItem" }
+          },
+          "bgColor": { "type": "string", "example": "#ffffff" },
+          "textColor": { "type": "string", "example": "#000000" },
+          "isVisible": { "type": "boolean", "example": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Info2": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "heading": { "type": "string", "example": "About Us" },
+          "paragraph": { "type": "string", "example": "We are a company..." },
+          "image": { "type": "string", "example": "/uploads/about.jpg" },
+          "imagePosition": {
+            "type": "string",
+            "enum": ["left", "right"],
+            "example": "right"
+          },
+          "bgColor": { "type": "string", "example": "#ffffff" },
+          "textColor": { "type": "string", "example": "#000000" },
+          "isVisible": { "type": "boolean", "example": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "TestimonialItem": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string", "example": "Ahmed Ali" },
+          "role": { "type": "string", "example": "CEO" },
+          "avatar": { "type": "string", "example": "/uploads/avatar.png" },
+          "message": { "type": "string", "example": "Great service!" },
+          "rating": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 5
+          },
+          "order": { "type": "number", "example": 1 }
+        }
+      },
+      "Testimonials": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "heading": { "type": "string", "example": "What Our Clients Say" },
+          "subheading": { "type": "string", "example": "" },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TestimonialItem" }
+          },
+          "bgColor": { "type": "string", "example": "#ffffff" },
+          "textColor": { "type": "string", "example": "#000000" },
+          "isVisible": { "type": "boolean", "example": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ContactField": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string", "example": "email" },
+          "label": { "type": "string", "example": "Email" },
+          "type": {
+            "type": "string",
+            "enum": ["text", "email", "tel", "textarea"],
+            "example": "email"
+          },
+          "required": { "type": "boolean", "example": true },
+          "order": { "type": "number", "example": 1 }
+        }
+      },
+      "Contact": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "heading": { "type": "string", "example": "Contact Us" },
+          "subheading": { "type": "string", "example": "" },
+          "fields": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ContactField" }
+          },
+          "submitText": { "type": "string", "example": "Send" },
+          "phone": { "type": "string", "example": "01000000000" },
+          "email": { "type": "string", "example": "info@wegz.com" },
+          "address": { "type": "string", "example": "Cairo, Egypt" },
+          "bgColor": { "type": "string", "example": "#ffffff" },
+          "textColor": { "type": "string", "example": "#000000" },
+          "isVisible": { "type": "boolean", "example": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "FooterLink": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "label": { "type": "string", "example": "Home" },
+          "url": { "type": "string", "example": "/" },
+          "order": { "type": "number", "example": 1 }
+        }
+      },
+      "FooterSocial": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "platform": { "type": "string", "example": "facebook" },
+          "url": { "type": "string", "example": "https://facebook.com/wegz" }
+        }
+      },
+      "Footer": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "brandName": { "type": "string", "example": "MyBrand" },
+          "logo": { "type": "string", "example": "/uploads/logo.png" },
+          "description": { "type": "string", "example": "We are the best" },
+          "links": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/FooterLink" }
+          },
+          "socials": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/FooterSocial" }
+          },
+          "copyright": { "type": "string", "example": "© 2026 MyBrand" },
+          "bgColor": { "type": "string", "example": "#111111" },
+          "textColor": { "type": "string", "example": "#ffffff" },
+          "isVisible": { "type": "boolean", "example": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Theme": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string", "example": "Theme 1" },
+          "description": { "type": "string", "example": "" },
+          "isActive": { "type": "boolean", "example": true },
+          "activeMode": {
+            "type": "string",
+            "enum": ["dark", "light"],
+            "example": "light"
+          },
+          "availableModes": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["dark", "light"] },
+            "example": ["dark", "light"]
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateThemeRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "example": "Theme 3" },
+          "description": { "type": "string", "example": "A modern look" },
+          "availableModes": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["dark", "light"] },
+            "example": ["dark", "light"]
+          }
+        }
+      },
+      "UpdateThemeRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      },
+      "ChangeModeRequest": {
+        "type": "object",
+        "required": ["mode"],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["dark", "light"],
+            "example": "dark"
+          }
+        }
+      },
+      "SectionType": {
+        "type": "string",
+        "enum": [
+          "announcement",
+          "header",
+          "hero",
+          "info",
+          "info2",
+          "testimonials",
+          "contact",
+          "footer"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string" },
+          "error": { "type": "string" }
+        }
+      },
+      "SectionCreateBody": {
+        "type": "object",
+        "description": "حقول مشتركة + حقول خاصة بكل نوع. لو عندك صورة، ابعت multipart/form-data.",
+        "properties": {
+          "text": { "type": "string", "description": "لـ announcement" },
+          "brandName": {
+            "type": "string",
+            "description": "لـ header / footer"
+          },
+          "title": { "type": "string", "description": "لـ hero" },
+          "subtitle": { "type": "string", "description": "لـ hero" },
+          "ctaText": { "type": "string", "description": "لـ hero" },
+          "ctaUrl": { "type": "string", "description": "لـ hero" },
+          "ctaColor": { "type": "string", "description": "لـ hero" },
+          "heading": {
+            "type": "string",
+            "description": "لـ info / info2 / testimonials / contact"
+          },
+          "subheading": {
+            "type": "string",
+            "description": "لـ info / testimonials"
+          },
+          "paragraph": { "type": "string", "description": "لـ info2" },
+          "imagePosition": {
+            "type": "string",
+            "enum": ["left", "right"],
+            "description": "لـ info2"
+          },
+          "submitText": { "type": "string", "description": "لـ contact" },
+          "phone": { "type": "string", "description": "لـ contact" },
+          "email": { "type": "string", "description": "لـ contact" },
+          "address": { "type": "string", "description": "لـ contact" },
+          "copyright": { "type": "string", "description": "لـ footer" },
+          "description": { "type": "string", "description": "لـ footer" },
+          "bgColor": { "type": "string", "example": "#ffffff" },
+          "textColor": { "type": "string", "example": "#000000" },
+          "isVisible": { "type": "boolean", "example": true },
+          "logo": { "type": "string", "description": "URL أو ملف (file)" },
+          "image": { "type": "string", "description": "URL أو ملف (file)" },
+          "links": {
+            "type": "string",
+            "description": "JSON string: [{ label, url, isActive, order }]"
+          },
+          "items": {
+            "type": "string",
+            "description": "JSON string: [{ icon, title, description, order }] أو [{ name, role, avatar, message, rating, order }]"
+          },
+          "fields": {
+            "type": "string",
+            "description": "JSON string: [{ name, label, type, required, order }]"
+          },
+          "socials": {
+            "type": "string",
+            "description": "JSON string: [{ platform, url }]"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "إنشاء حساب جديد",
+        "description": "بيعمل مستخدم جديد بـ role = user وبيرجع JWT token + بيانات المستخدم",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تم إنشاء الحساب",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LoginResponse" }
+              }
+            }
+          },
+          "400": { "description": "بيانات ناقصة أو الباسورد أقل من 6 حروف" },
+          "409": { "description": "الإيميل مستخدم" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "تسجيل دخول الأدمن",
+        "description": "بترجع JWT token + بيانات المستخدم",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LoginResponse" }
+              }
+            }
+          },
+          "400": { "description": "بيانات ناقصة" },
+          "401": { "description": "بيانات غلط" }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "بيانات المستخدم الحالي",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": { "$ref": "#/components/schemas/User" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "غير مصرح" }
+        }
+      },
+      "patch": {
+        "tags": ["Auth"],
+        "summary": "تعديل بيانات البروفايل",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateMeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": { "$ref": "#/components/schemas/User" }
+                  }
+                }
+              }
+            }
+          },
+          "409": { "description": "الإيميل مستخدم" }
+        }
+      }
+    },
+    "/api/auth/change-password": {
+      "patch": {
+        "tags": ["Auth"],
+        "summary": "تغيير كلمة المرور",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChangePasswordRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "message": { "type": "string" } }
+                }
+              }
+            }
+          },
+          "401": { "description": "الباسورد الحالي غلط" }
+        }
+      }
+    },
+    "/api/admin/sections/{type}": {
+      "get": {
+        "tags": ["Sections"],
+        "summary": "كل النسخ من نوع سكشن معين",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "schema": { "$ref": "#/components/schemas/SectionType" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "type": "array", "items": { "type": "object" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Sections"],
+        "summary": "إنشاء نسخة جديدة",
+        "description": "ابعته multipart/form-data لو فيه صورة، أو JSON لو مفيش. **ملاحظة:** لو بعتت isVisible: true، كل النسخ التانية من نفس النوع بتبقى false تلقائياً.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "schema": { "$ref": "#/components/schemas/SectionType" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": { "$ref": "#/components/schemas/SectionCreateBody" }
+            },
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SectionCreateBody" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تم الإنشاء",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "data": { "type": "object" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/sections/{type}/{id}": {
+      "get": {
+        "tags": ["Sections"],
+        "summary": "جلب نسخة واحدة بالـ ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "schema": { "$ref": "#/components/schemas/SectionType" }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "data": { "type": "object" } }
+                }
+              }
+            }
+          },
+          "404": { "description": "غير موجود" }
+        }
+      },
+      "patch": {
+        "tags": ["Sections"],
+        "summary": "تعديل نسخة معينة",
+        "description": "**ملاحظة:** لو بعتت isVisible: true، كل النسخ التانية بتبقى false تلقائياً.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "schema": { "$ref": "#/components/schemas/SectionType" }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": { "$ref": "#/components/schemas/SectionCreateBody" }
+            },
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SectionCreateBody" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "data": { "type": "object" } }
+                }
+              }
+            }
+          },
+          "404": { "description": "غير موجود" }
+        }
+      },
+      "delete": {
+        "tags": ["Sections"],
+        "summary": "مسح نسخة معينة",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "schema": { "$ref": "#/components/schemas/SectionType" }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "تم المسح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "message": { "type": "string" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/upload/image": {
+      "post": {
+        "tags": ["Upload"],
+        "summary": "رفع صورة",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["image"],
+                "properties": {
+                  "image": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "example": "/uploads/1728-xxx.png"
+                    },
+                    "filename": { "type": "string", "example": "1728-xxx.png" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/dashboard/sections": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "كل السكاشن بكل نسخهم",
+        "description": "endpoint واحد للداشبورد بدل 8 requests",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sections": {
+                      "type": "object",
+                      "properties": {
+                        "announcement": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Announcement"
+                          }
+                        },
+                        "header": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Header" }
+                        },
+                        "hero": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Hero" }
+                        },
+                        "info": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Info" }
+                        },
+                        "info2": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Info2" }
+                        },
+                        "testimonials": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Testimonials"
+                          }
+                        },
+                        "contact": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Contact" }
+                        },
+                        "footer": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Footer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/themes": {
+      "get": {
+        "tags": ["Themes"],
+        "summary": "كل الثيمات",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Theme" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Themes"],
+        "summary": "إنشاء ثيم جديد",
+        "description": "أول ثيم يتعمل بيبقى active تلقائياً",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateThemeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تم الإنشاء",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/Theme" }
+                  }
+                }
+              }
+            }
+          },
+          "409": { "description": "الاسم مستخدم" }
+        }
+      }
+    },
+    "/api/admin/themes/{id}": {
+      "get": {
+        "tags": ["Themes"],
+        "summary": "ثيم واحد",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/Theme" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "غير موجود" }
+        }
+      },
+      "patch": {
+        "tags": ["Themes"],
+        "summary": "تعديل ثيم (name, description)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateThemeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/Theme" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Themes"],
+        "summary": "مسح ثيم (مش هينفع تمسح الـ active)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "تم المسح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "message": { "type": "string" } }
+                }
+              }
+            }
+          },
+          "400": { "description": "مش هينفع تمسح الـ active" }
+        }
+      }
+    },
+    "/api/admin/themes/{id}/activate": {
+      "patch": {
+        "tags": ["Themes"],
+        "summary": "تفعيل ثيم",
+        "description": "بيخلي كل الثيمات التانية false تلقائياً",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/Theme" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/themes/{id}/mode": {
+      "patch": {
+        "tags": ["Themes"],
+        "summary": "تغيير الوضع (dark/light)",
+        "description": "بيغيّر activeMode للثيم. لازم الوضع يكون في availableModes بتاع الثيم.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChangeModeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/Theme" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "الوضع غلط" },
+          "404": { "description": "غير موجود" }
+        }
+      }
+    },
+    "/api/public/landing": {
+      "get": {
+        "tags": ["Public"],
+        "summary": "كل السكاشن المفعّلة للزوار (بدون مصادقة)",
+        "description": "بيرجع theme + mode + sections. السكاشن null لو مش موجودة أو isVisible: false",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "نجح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "theme": { "type": "string", "example": "Theme 1" },
+                    "mode": {
+                      "type": "string",
+                      "enum": ["dark", "light"],
+                      "example": "light"
+                    },
+                    "sections": {
+                      "type": "object",
+                      "properties": {
+                        "announcement": {
+                          "allOf": [
+                            { "$ref": "#/components/schemas/Announcement" }
+                          ],
+                          "nullable": true
+                        },
+                        "header": {
+                          "allOf": [{ "$ref": "#/components/schemas/Header" }],
+                          "nullable": true
+                        },
+                        "hero": {
+                          "allOf": [{ "$ref": "#/components/schemas/Hero" }],
+                          "nullable": true
+                        },
+                        "info": {
+                          "allOf": [{ "$ref": "#/components/schemas/Info" }],
+                          "nullable": true
+                        },
+                        "info2": {
+                          "allOf": [{ "$ref": "#/components/schemas/Info2" }],
+                          "nullable": true
+                        },
+                        "testimonials": {
+                          "allOf": [
+                            { "$ref": "#/components/schemas/Testimonials" }
+                          ],
+                          "nullable": true
+                        },
+                        "contact": {
+                          "allOf": [{ "$ref": "#/components/schemas/Contact" }],
+                          "nullable": true
+                        },
+                        "footer": {
+                          "allOf": [{ "$ref": "#/components/schemas/Footer" }],
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
