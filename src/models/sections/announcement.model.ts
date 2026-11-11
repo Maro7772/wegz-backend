@@ -1,4 +1,5 @@
-import { Schema, model, Document } from "mongoose";
+import { Schema, Document } from "mongoose";
+import { createModelProxy } from "../../config/proxyModel.js";
 
 export interface IAnnouncement extends Document {
   text: string;
@@ -7,7 +8,7 @@ export interface IAnnouncement extends Document {
   isVisible: boolean;
 }
 
-const AnnouncementSchema = new Schema<IAnnouncement>(
+export const AnnouncementSchema = new Schema<IAnnouncement>(
   {
     text: { type: String, default: "" },
     bgColor: { type: String, default: "#000000" },
@@ -17,7 +18,7 @@ const AnnouncementSchema = new Schema<IAnnouncement>(
   { timestamps: true },
 );
 
-export const Announcement = model<IAnnouncement>(
+export const Announcement = createModelProxy<IAnnouncement>(
   "Announcement",
   AnnouncementSchema,
 );

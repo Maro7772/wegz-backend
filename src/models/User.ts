@@ -1,4 +1,5 @@
-import { Schema, model, Document } from "mongoose";
+import { Schema, Document } from "mongoose";
+import { createModelProxy } from "../config/proxyModel.js";
 
 export interface IUser extends Document {
   name: string;
@@ -9,7 +10,7 @@ export interface IUser extends Document {
   isActive: boolean;
 }
 
-const UserSchema = new Schema<IUser>(
+export const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true, trim: true },
     email: {
@@ -27,4 +28,4 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true },
 );
 
-export const User = model<IUser>("User", UserSchema);
+export const User = createModelProxy<IUser>("User", UserSchema);

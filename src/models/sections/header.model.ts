@@ -1,4 +1,5 @@
-import { Schema, model, Document, Types } from "mongoose";
+import { Schema, Document, Types } from "mongoose";
+import { createModelProxy } from "../../config/proxyModel.js";
 
 export interface IHeaderLink {
   _id?: Types.ObjectId;
@@ -27,7 +28,7 @@ const HeaderLinkSchema = new Schema<IHeaderLink>(
   { _id: true },
 );
 
-const HeaderSchema = new Schema<IHeader>(
+export const HeaderSchema = new Schema<IHeader>(
   {
     logo: { type: String, default: "" },
     brandName: { type: String, default: "" },
@@ -39,4 +40,4 @@ const HeaderSchema = new Schema<IHeader>(
   { timestamps: true },
 );
 
-export const Header = model<IHeader>("Header", HeaderSchema);
+export const Header = createModelProxy<IHeader>("Header", HeaderSchema);

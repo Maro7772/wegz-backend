@@ -1,4 +1,5 @@
-import { Schema, model, Document, Types } from "mongoose";
+import { Schema, Document, Types } from "mongoose";
+import { createModelProxy } from "../../config/proxyModel.js";
 
 export interface IFooterLink {
   _id?: Types.ObjectId;
@@ -42,7 +43,7 @@ const FooterSocialSchema = new Schema<IFooterSocial>(
   { _id: true },
 );
 
-const FooterSchema = new Schema<IFooter>(
+export const FooterSchema = new Schema<IFooter>(
   {
     brandName: { type: String, default: "" },
     logo: { type: String, default: "" },
@@ -57,4 +58,4 @@ const FooterSchema = new Schema<IFooter>(
   { timestamps: true },
 );
 
-export const Footer = model<IFooter>("Footer", FooterSchema);
+export const Footer = createModelProxy<IFooter>("Footer", FooterSchema);

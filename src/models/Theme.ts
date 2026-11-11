@@ -1,4 +1,5 @@
-import { Schema, model, Document } from "mongoose";
+import { Schema, Document } from "mongoose";
+import { createModelProxy } from "../config/proxyModel.js";
 
 export const AVAILABLE_MODES = ["dark", "light"] as const;
 export type ModeKey = (typeof AVAILABLE_MODES)[number];
@@ -7,11 +8,11 @@ export interface ITheme extends Document {
   name: string;
   description: string;
   isActive: boolean;
-  activeMode: ModeKey; // ← الوضع الحالي
-  availableModes: ModeKey[]; // ← المتاحين للثيم
+  activeMode: ModeKey;
+  availableModes: ModeKey[];
 }
 
-const ThemeSchema = new Schema<ITheme>(
+export const ThemeSchema = new Schema<ITheme>(
   {
     name: { type: String, required: true, trim: true, unique: true },
     description: { type: String, default: "" },
@@ -26,4 +27,4 @@ const ThemeSchema = new Schema<ITheme>(
   { timestamps: true },
 );
 
-export const Theme = model<ITheme>("Theme", ThemeSchema);
+export const Theme = createModelProxy<ITheme>("Theme", ThemeSchema);

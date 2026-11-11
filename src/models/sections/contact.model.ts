@@ -1,4 +1,5 @@
-import { Schema, model, Document, Types } from "mongoose";
+import { Schema, Document, Types } from "mongoose";
+import { createModelProxy } from "../../config/proxyModel.js";
 
 export interface IContactField {
   _id?: Types.ObjectId;
@@ -37,7 +38,7 @@ const ContactFieldSchema = new Schema<IContactField>(
   { _id: true },
 );
 
-const ContactSchema = new Schema<IContact>(
+export const ContactSchema = new Schema<IContact>(
   {
     heading: { type: String, default: "" },
     subheading: { type: String, default: "" },
@@ -53,4 +54,4 @@ const ContactSchema = new Schema<IContact>(
   { timestamps: true },
 );
 
-export const Contact = model<IContact>("Contact", ContactSchema);
+export const Contact = createModelProxy<IContact>("Contact", ContactSchema);

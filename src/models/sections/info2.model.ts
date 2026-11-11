@@ -1,4 +1,5 @@
-import { Schema, model, Document } from "mongoose";
+import { Schema, Document } from "mongoose";
+import { createModelProxy } from "../../config/proxyModel.js";
 
 export interface IInfo2 extends Document {
   heading: string;
@@ -10,7 +11,7 @@ export interface IInfo2 extends Document {
   isVisible: boolean;
 }
 
-const Info2Schema = new Schema<IInfo2>(
+export const Info2Schema = new Schema<IInfo2>(
   {
     heading: { type: String, default: "" },
     paragraph: { type: String, default: "" },
@@ -23,4 +24,4 @@ const Info2Schema = new Schema<IInfo2>(
   { timestamps: true },
 );
 
-export const Info2 = model<IInfo2>("Info2", Info2Schema);
+export const Info2 = createModelProxy<IInfo2>("Info2", Info2Schema);

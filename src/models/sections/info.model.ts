@@ -1,4 +1,5 @@
-import { Schema, model, Document, Types } from "mongoose";
+import { Schema, Document, Types } from "mongoose";
+import { createModelProxy } from "../../config/proxyModel.js";
 
 export interface IInfoItem {
   _id?: Types.ObjectId;
@@ -27,7 +28,7 @@ const InfoItemSchema = new Schema<IInfoItem>(
   { _id: true },
 );
 
-const InfoSchema = new Schema<IInfo>(
+export const InfoSchema = new Schema<IInfo>(
   {
     heading: { type: String, default: "" },
     subheading: { type: String, default: "" },
@@ -39,4 +40,4 @@ const InfoSchema = new Schema<IInfo>(
   { timestamps: true },
 );
 
-export const Info = model<IInfo>("Info", InfoSchema);
+export const Info = createModelProxy<IInfo>("Info", InfoSchema);

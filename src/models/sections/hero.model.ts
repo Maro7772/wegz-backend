@@ -1,4 +1,5 @@
-import { Schema, model, Document } from "mongoose";
+import { Schema, Document } from "mongoose";
+import { createModelProxy } from "../../config/proxyModel.js";
 
 export interface IHero extends Document {
   title: string;
@@ -12,7 +13,7 @@ export interface IHero extends Document {
   isVisible: boolean;
 }
 
-const HeroSchema = new Schema<IHero>(
+export const HeroSchema = new Schema<IHero>(
   {
     title: { type: String, default: "" },
     subtitle: { type: String, default: "" },
@@ -27,4 +28,4 @@ const HeroSchema = new Schema<IHero>(
   { timestamps: true },
 );
 
-export const Hero = model<IHero>("Hero", HeroSchema);
+export const Hero = createModelProxy<IHero>("Hero", HeroSchema);

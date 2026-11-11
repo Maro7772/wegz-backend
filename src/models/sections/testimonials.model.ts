@@ -1,4 +1,5 @@
-import { Schema, model, Document, Types } from "mongoose";
+import { Schema, Document, Types } from "mongoose";
+import { createModelProxy } from "../../config/proxyModel.js";
 
 export interface ITestimonialItem {
   _id?: Types.ObjectId;
@@ -31,7 +32,7 @@ const TestimonialItemSchema = new Schema<ITestimonialItem>(
   { _id: true },
 );
 
-const TestimonialsSchema = new Schema<ITestimonials>(
+export const TestimonialsSchema = new Schema<ITestimonials>(
   {
     heading: { type: String, default: "" },
     subheading: { type: String, default: "" },
@@ -43,7 +44,7 @@ const TestimonialsSchema = new Schema<ITestimonials>(
   { timestamps: true },
 );
 
-export const Testimonials = model<ITestimonials>(
+export const Testimonials = createModelProxy<ITestimonials>(
   "Testimonials",
   TestimonialsSchema,
 );
