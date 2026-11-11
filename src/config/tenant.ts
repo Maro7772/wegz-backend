@@ -16,6 +16,11 @@ export interface TenantInfo {
   companyName: string;
   status: "active" | "suspended" | "pending";
   sections: string[];
+  start_date?: Date;
+  end_date?: Date;
+  payment_cycle?: string;
+  payment_amount?: number;
+  custom_domain?: string;
 }
 
 // ── Cache للاتصالات لتفادي إعادة الاتصال مع كل request ────────────────────────
@@ -65,6 +70,11 @@ const clientSchemaDefinition = new mongoose.Schema(
     },
     sections: [{ type: mongoose.Schema.Types.ObjectId }],
     provisioning_status: String,
+    start_date: Date,
+    end_date: Date,
+    payment_cycle: String,
+    payment_amount: Number,
+    custom_domain: { type: String, index: true },
   },
   { timestamps: true, collection: "clients" },
 );
@@ -106,7 +116,15 @@ export async function resolveTenant(
 
   if (options.host) {
     const cleanHost = options.host.split(":")[0].toLowerCase().trim();
-    // مطابقة مباشرة أو مطابقة مع رابط https://host أو http://host
+    const hostWithoutWww = cleanHost.startsWith("www.")
+      ? cleanHost.slice(4)
+      : cleanHost;
+
+    // 1. مطابقة مباشرة مع custom_domain في جدول Clients (مثل sss.net أو www.sss.net)
+    queries.push({ custom_domain: cleanHost });
+    queries.push({ custom_domain: hostWithoutWww });
+
+    // 2. مطابقة مع الروابط المسجلة
     queries.push({
       subdomain_url: new RegExp(`^https?://${cleanHost}(/.*)?$`, "i"),
     });
@@ -119,6 +137,12 @@ export async function resolveTenant(
     try {
       const url = new URL(options.origin);
       const originHost = url.hostname.toLowerCase();
+      const originWithoutWww = originHost.startsWith("www.")
+        ? originHost.slice(4)
+        : originHost;
+
+      queries.push({ custom_domain: originHost });
+      queries.push({ custom_domain: originWithoutWww });
       queries.push({
         subdomain_url: new RegExp(`^https?://${originHost}(/.*)?$`, "i"),
       });
@@ -146,6 +170,11 @@ export async function resolveTenant(
     companyName: client.company_name,
     status: client.status,
     sections: (client.sections || []).map((s: any) => s.toString()),
+    start_date: client.start_date,
+    end_date: client.end_date,
+    payment_cycle: client.payment_cycle,
+    payment_amount: client.payment_amount,
+    custom_domain: client.custom_domain,
   };
 }
 

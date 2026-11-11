@@ -146,11 +146,11 @@ export async function tenantMiddleware(
       fullUrl: host ? `${req.protocol}://${host}` : undefined,
     });
 
-    // 3. إذا لم يكن الـ subdomain مسجلاً: إرجاع 401 فورًا
+    // 3. إذا لم يكن الـ subdomain أو الـ custom domain مسجلاً: إرجاع 401 فورًا
     if (!tenant) {
       res.status(401).json({
-        message: "Unauthorized: Invalid or unregistered subdomain",
-        subdomain: extractedSubdomain || null,
+        message: "Unauthorized: Invalid or unregistered domain or subdomain",
+        identifier: extractedSubdomain || host || null,
       });
       return;
     }
