@@ -14,6 +14,36 @@ import themeRoutes from "./routes/theme.routes.js";
 import subscriptionRoutes from "./routes/subscription.routes.js";
 import customDomainRoutes from "./routes/customDomain.routes.js";
 
+
+// root@hostego:/var/www/vhosts/wegz.org/wegz-backend# git pull
+// remote: Enumerating objects: 22, done.
+// remote: Counting objects: 100% (22/22), done.
+// remote: Compressing objects: 100% (6/6), done.
+// remote: Total 13 (delta 7), reused 13 (delta 7), pack-reused 0 (from 0)
+// Unpacking objects: 100% (13/13), 7.78 KiB | 1.30 MiB/s, done.
+// From https://github.com/Maro7772/wegz-backend
+//    778e9d9..74b50e5  main       -> origin/main
+// Updating 778e9d9..74b50e5
+// Fast-forward
+//  .env.example                               |   6 +
+//  src/config/tenant.ts                       |   7 +
+//  src/controllers/customDomain.controller.ts | 351 +++++++++++++++++++++++++++++
+//  src/routes/customDomain.routes.ts          |  34 +++
+//  src/server.ts                              |   2 +
+//  src/services/plesk.service.ts              | 315 ++++++++++++++++++++++++++
+//  6 files changed, 715 insertions(+)
+//  create mode 100644 src/controllers/customDomain.controller.ts
+//  create mode 100644 src/routes/customDomain.routes.ts
+//  create mode 100644 src/services/plesk.service.ts
+// root@hostego:/var/www/vhosts/wegz.org/wegz-backend# npm run build
+
+// > wegz-backend@1.0.0 build
+// > tsc
+
+// root@hostego:/var/www/vhosts/wegz.org/wegz-backend# OWNER=$(stat -c '%U:%G' /var/www/vhosts/wegz.org/wegz-backend)
+// root@hostego:/var/www/vhosts/wegz.org/wegz-backend# chown -R "$OWNER" /var/www/vhosts/wegz.org/wegz-backend
+
+
 const app = express();
 
 // إعداد CORS ليدعم جميع الـ wildcard subdomains والـ localhost
