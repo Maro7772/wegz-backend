@@ -10,8 +10,8 @@
 import {
   getClientLookupModel,
   getTenantConnection,
-} from "../config/tenant";
-import { allTenantMigrations, type TenantMigrationResult } from "../migrations";
+} from "../config/tenant.js";
+import { allTenantMigrations, type TenantMigrationResult } from "../migrations/index.js";
 
 const MIGRATIONS_COLLECTION = "_migrations";
 

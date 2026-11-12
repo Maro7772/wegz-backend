@@ -1,4 +1,4 @@
-import type { TenantMigration } from "./types";
+import type { TenantMigration } from "./types.js";
 
 /**
  * Migration 002: Add Section Indexes & Theme Defaults

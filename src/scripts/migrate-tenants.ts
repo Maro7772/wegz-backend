@@ -11,11 +11,11 @@ import "dotenv/config";
 import {
   getMasterConnection,
   closeAllConnections,
-} from "../config/tenant";
+} from "../config/tenant.js";
 import {
   runAllTenantMigrations,
   getTenantMigrationsStatus,
-} from "../services/tenantMigration.service";
+} from "../services/tenantMigration.service.js";
 
 const args = process.argv.slice(2);
 const isDryRun = args.includes("--dry-run");

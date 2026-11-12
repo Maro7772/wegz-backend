@@ -1,4 +1,4 @@
-import type { TenantMigration } from "./types";
+import type { TenantMigration } from "./types.js";
 
 /**
  * Migration 001: Initial Schema Setup
