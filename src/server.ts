@@ -12,6 +12,7 @@ import uploadRoutes from "./routes/upload.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import themeRoutes from "./routes/theme.routes.js";
 import subscriptionRoutes from "./routes/subscription.routes.js";
+import customDomainRoutes from "./routes/customDomain.routes.js";
 
 const app = express();
 
@@ -56,6 +57,7 @@ app.use("/api/admin/themes", themeRoutes);
 app.use("/api/admin/dashboard", dashboardRoutes);
 app.use("/api/admin/sections", sectionRoutes);
 app.use("/api/admin/subscription", subscriptionRoutes);
+app.use("/api/admin/custom-domains", customDomainRoutes);
 app.use("/api/admin/upload", uploadRoutes);
 app.use("/api/public", publicRoutes);
 

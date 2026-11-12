@@ -75,6 +75,13 @@ const clientSchemaDefinition = new mongoose.Schema(
     payment_cycle: String,
     payment_amount: Number,
     custom_domain: { type: String, index: true },
+    custom_domain_status: {
+      type: String,
+      enum: ["pending_dns", "active", "failed", "disabled"],
+    },
+    custom_domain_ssl: { type: Boolean, default: false },
+    custom_domain_created_at: Date,
+    custom_domain_verified_at: Date,
   },
   { timestamps: true, collection: "clients" },
 );
