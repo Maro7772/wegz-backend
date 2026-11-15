@@ -99,15 +99,15 @@ export async function getClientLookupModel(): Promise<mongoose.Model<any>> {
 const masterThemeSchemaDefinition = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    key: { type: String, required: true },
+    key: { type: String },
     description: { type: String, default: "" },
     preview_image: { type: String, default: "" },
-    status: { type: String, enum: ["active", "inactive"], default: "active" },
+    status: { type: String, default: "active" },
     availableModes: { type: [String], default: ["dark", "light"] },
     defaultMode: { type: String, default: "light" },
     order: { type: Number, default: 0 },
   },
-  { timestamps: true, collection: "themes" },
+  { timestamps: true, collection: "themes", strict: false },
 );
 
 export async function getMasterThemeModel(): Promise<mongoose.Model<any>> {
@@ -115,7 +115,7 @@ export async function getMasterThemeModel(): Promise<mongoose.Model<any>> {
 
   const conn = await getMasterConnection();
   MasterThemeModel =
-    conn.models.Theme || conn.model("Theme", masterThemeSchemaDefinition);
+    conn.models.MasterTheme || conn.model("MasterTheme", masterThemeSchemaDefinition);
   return MasterThemeModel;
 }
 
