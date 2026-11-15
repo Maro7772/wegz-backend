@@ -10,7 +10,8 @@
     "migrate": "tsx src/scripts/migrate-tenants.ts",
     "migrate:tenants": "tsx src/scripts/migrate-tenants.ts",
     "seed:admin": "tsx src/scripts/seed-admin.ts",
-    "seed:themes": "tsx src/scripts/seed-themes.ts"
+    "seed:themes": "tsx src/scripts/seed-themes.ts",
+    "list:clients": "tsx src/scripts/list-clients.ts"
   },
   "keywords": [],
   "author": "",
