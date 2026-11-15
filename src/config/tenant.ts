@@ -27,6 +27,7 @@ export interface TenantInfo {
 const tenantConnectionCache = new Map<string, mongoose.Connection>();
 let masterConnection: mongoose.Connection | null = null;
 let ClientLookupModel: mongoose.Model<any> | null = null;
+let MasterThemeModel: mongoose.Model<any> | null = null;
 
 // ── Configuration ──────────────────────────────────────────────────────────
 const MASTER_MONGO_URI =
@@ -93,6 +94,29 @@ export async function getClientLookupModel(): Promise<mongoose.Model<any>> {
   ClientLookupModel =
     conn.models.Client || conn.model("Client", clientSchemaDefinition);
   return ClientLookupModel;
+}
+
+const masterThemeSchemaDefinition = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    key: { type: String, required: true },
+    description: { type: String, default: "" },
+    preview_image: { type: String, default: "" },
+    status: { type: String, enum: ["active", "inactive"], default: "active" },
+    availableModes: { type: [String], default: ["dark", "light"] },
+    defaultMode: { type: String, default: "light" },
+    order: { type: Number, default: 0 },
+  },
+  { timestamps: true, collection: "themes" },
+);
+
+export async function getMasterThemeModel(): Promise<mongoose.Model<any>> {
+  if (MasterThemeModel) return MasterThemeModel;
+
+  const conn = await getMasterConnection();
+  MasterThemeModel =
+    conn.models.Theme || conn.model("Theme", masterThemeSchemaDefinition);
+  return MasterThemeModel;
 }
 
 // ── Tenant Resolution ──────────────────────────────────────────────────────
