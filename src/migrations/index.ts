@@ -1,6 +1,7 @@
 import type { TenantMigration } from "./types.js";
 import { migration001 } from "./001_initial_schema.js";
 import { migration002 } from "./002_add_theme_modes_and_indexes.js";
+import { migration003 } from "./003_sync_tenant_themes.js";
 
 /**
  * سجل الميجريشنز لجميع الـ tenant schemas.
@@ -9,6 +10,7 @@ import { migration002 } from "./002_add_theme_modes_and_indexes.js";
 export const allTenantMigrations: TenantMigration[] = [
   migration001,
   migration002,
+  migration003,
 ];
 
 export * from "./types.js";
