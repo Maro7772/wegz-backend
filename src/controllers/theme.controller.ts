@@ -5,20 +5,18 @@ import { getMasterThemeModel } from "../config/tenant.js";
 
 /**
  * GET /api/admin/themes
- * جلب جميع الثيمات المتاحة للمنصة من Super Admin (Master DB)
- * مع تحديد الثيم المفعّل فقط للمتجر (أو الثيم الوحيد الموجود في قاعدة بيانات الـ tenant)
+ * جلب جميع الثيمات من Super Admin (Master DB) فقط
+ * وتحديد الثيم الذي اختاره العميل كـ isActive: true، والباقي false.
  */
 export const getAllThemes = async (_req: Request, res: Response) => {
   try {
     const MasterTheme = await getMasterThemeModel();
 
-    // جلب الثيمات من Master DB (أي ثيم غير معطل inactive)
+    // 1. جلب ثيمات السوبر أدمن من Master DB فقط
     let masterThemes = await MasterTheme.find({ status: { $ne: "inactive" } })
       .sort({ order: 1, createdAt: 1 })
       .lean();
 
-    // إذا كانت قاعدة بيانات Master DB خالية تماماً من الثيمات، نزرع الثيمات الافتراضية
-    // لضمان عدم ظهور القائمة فارغة للمستخدم.
     if (!masterThemes || masterThemes.length === 0) {
       const defaultThemes = [
         {
@@ -50,13 +48,25 @@ export const getAllThemes = async (_req: Request, res: Response) => {
       }
     }
 
-    // جلب الثيم الوحيد النشط حالياً للمتجر من قاعدة بيانات الـ Tenant
-    let currentTenantTheme = await Theme.findOne().lean();
+    // 2. فحص الثيم المختار حالياً عند الـ tenant في قاعدة بياناته
+    let currentTenantTheme = await Theme.findOne({ isActive: true }).lean();
+    if (!currentTenantTheme) {
+      currentTenantTheme = await Theme.findOne().lean();
+    }
 
-    // إذا لم يكن لدى الـ Tenant أي ثيم مسجل بعد، نقوم بتسجيل الثيم الأول كـ active
-    if (!currentTenantTheme && masterThemes.length > 0) {
+    // التحقق مما إذا كان الثيم المسجل عند العميل هو أحد ثيمات السوبر أدمن المعتمدة
+    const isMatchingMaster = masterThemes.some(
+      (mt: any) =>
+        mt.name === currentTenantTheme?.name ||
+        (mt.key && mt.key === currentTenantTheme?.name),
+    );
+
+    // إذا لم يكن العميل قد اختار بعد، أو كان عنده ثيم قديم غير موجود في السوبر أدمن:
+    // نعتمد الثيم الأول من السوبر أدمن كافتراضي وننظف القديم
+    if (!isMatchingMaster && masterThemes.length > 0) {
       const first = masterThemes[0];
       try {
+        await Theme.deleteMany({});
         currentTenantTheme = await Theme.create({
           name: first.name,
           description: first.description || "",
@@ -72,8 +82,11 @@ export const getAllThemes = async (_req: Request, res: Response) => {
     const activeThemeName = currentTenantTheme?.name;
     const activeMode = currentTenantTheme?.activeMode || "light";
 
+    // 3. إرجاع قائمة السوبر أدمن مع وضع isActive: true للثيم المختار فقط
     const data = masterThemes.map((mt: any) => {
-      const isSelected = activeThemeName ? mt.name === activeThemeName : false;
+      const isSelected = activeThemeName
+        ? mt.name === activeThemeName || (mt.key && mt.key === activeThemeName)
+        : false;
 
       return {
         _id: mt._id,
@@ -97,11 +110,10 @@ export const getAllThemes = async (_req: Request, res: Response) => {
 
 /**
  * GET /api/admin/themes/:id
- * جلب تفاصيل ثيم محدد من Master DB
  */
 export const getThemeById = async (req: Request, res: Response) => {
   try {
-    const id = String(req.params.id);
+    const id = String(req.params.id).trim();
     const MasterTheme = await getMasterThemeModel();
     let masterTheme = null;
 
@@ -110,7 +122,7 @@ export const getThemeById = async (req: Request, res: Response) => {
     }
     if (!masterTheme) {
       masterTheme = await MasterTheme.findOne({
-        $or: [{ key: id.toLowerCase().trim() }, { name: id.trim() }],
+        $or: [{ key: id.toLowerCase() }, { name: id }],
       }).lean();
     }
 
@@ -143,14 +155,13 @@ export const getThemeById = async (req: Request, res: Response) => {
 /**
  * PATCH /api/admin/themes/:id/activate
  * تفعيل ثيم للمتجر الحالي:
- * 1. مسح أي ثيم قديم مسجل عند الـ tenant (ليكون عنده ثيم واحد فقط هو المختار)
- * 2. تسجيل الثيم المختار كـ active
+ * 1. مسح أي ثيم قديم موجود عند الـ tenant
+ * 2. تسجيل الثيم المختار فقط كـ active
  */
 export const activateTheme = async (req: Request, res: Response) => {
   try {
-    const id = String(req.params.id);
+    const id = String(req.params.id).trim();
 
-    // البحث عن الثيم في Master DB (بواسطة _id أو key أو name)
     const MasterTheme = await getMasterThemeModel();
     let masterTheme = null;
 
@@ -160,8 +171,8 @@ export const activateTheme = async (req: Request, res: Response) => {
     if (!masterTheme) {
       masterTheme = await MasterTheme.findOne({
         $or: [
-          { key: id.toLowerCase().trim() },
-          { name: id.trim() },
+          { key: id.toLowerCase() },
+          { name: id },
         ],
       }).lean();
     }
@@ -170,10 +181,10 @@ export const activateTheme = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Theme not found in Super Admin catalog" });
     }
 
-    // 1. مسح أي ثيم قديم موجود عند الـ tenant (حذف القديم تماماً ليبقى ثيم واحد فقط)
+    // مسح القديم
     await Theme.deleteMany({});
 
-    // 2. إنشاء الثيم المختار كـ active في قاعدة بيانات الـ tenant
+    // إنشاء وحفظ المختار فقط
     const chosenMode = masterTheme.defaultMode || "light";
     const tenantTheme = await Theme.create({
       name: masterTheme.name,
@@ -201,7 +212,6 @@ export const activateTheme = async (req: Request, res: Response) => {
 
 /**
  * PATCH /api/admin/themes/:id/mode
- * تغيير الوضع (dark / light) للثيم المفعّل عند الـ tenant
  */
 export const changeMode = async (req: Request, res: Response) => {
   try {
@@ -217,7 +227,6 @@ export const changeMode = async (req: Request, res: Response) => {
       });
     }
 
-    // جلب الثيم الوحيد الموجود عند الـ tenant
     let tenantTheme = await Theme.findOne();
     if (!tenantTheme) {
       return res.status(404).json({ message: "No active theme found for this tenant" });
