@@ -28,6 +28,9 @@ const tenantConnectionCache = new Map<string, mongoose.Connection>();
 let masterConnection: mongoose.Connection | null = null;
 let ClientLookupModel: mongoose.Model<any> | null = null;
 let MasterThemeModel: mongoose.Model<any> | null = null;
+let MasterPackageModel: mongoose.Model<any> | null = null;
+let MasterPaymentMethodModel: mongoose.Model<any> | null = null;
+let MasterOrderModel: mongoose.Model<any> | null = null;
 
 // ── Configuration ──────────────────────────────────────────────────────────
 const MASTER_MONGO_URI =
@@ -117,6 +120,107 @@ export async function getMasterThemeModel(): Promise<mongoose.Model<any>> {
   MasterThemeModel =
     conn.models.MasterTheme || conn.model("MasterTheme", masterThemeSchemaDefinition);
   return MasterThemeModel;
+}
+
+// ── Master Package, PaymentMethod, and Order Models ─────────────────────────
+
+const masterPackageSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    price: { type: Number, required: true, min: 0 },
+    months: { type: Number, required: true, min: 1 },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+      index: true,
+    },
+    discount: { type: Number, default: 0, min: 0 },
+  },
+  { timestamps: true, collection: "packages" },
+);
+
+export async function getMasterPackageModel(): Promise<mongoose.Model<any>> {
+  if (MasterPackageModel) return MasterPackageModel;
+
+  const conn = await getMasterConnection();
+  MasterPackageModel =
+    conn.models.Package || conn.model("Package", masterPackageSchema);
+  return MasterPackageModel;
+}
+
+const masterPaymentMethodSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    icon: { type: String },
+    description: { type: String },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+      index: true,
+    },
+  },
+  { timestamps: true, collection: "payment_methods" },
+);
+
+export async function getMasterPaymentMethodModel(): Promise<mongoose.Model<any>> {
+  if (MasterPaymentMethodModel) return MasterPaymentMethodModel;
+
+  const conn = await getMasterConnection();
+  MasterPaymentMethodModel =
+    conn.models.PaymentMethod ||
+    conn.model("PaymentMethod", masterPaymentMethodSchema);
+  return MasterPaymentMethodModel;
+}
+
+const masterOrderSchema = new mongoose.Schema(
+  {
+    package_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Package",
+      required: true,
+      index: true,
+    },
+    price: { type: Number, required: true, min: 0 },
+    discount: { type: Number, default: 0, min: 0 },
+    final_price: { type: Number, required: true, min: 0 },
+    status: {
+      type: String,
+      enum: ["pending", "approve", "reject"],
+      default: "pending",
+      index: true,
+    },
+    payment_method_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "PaymentMethod",
+      required: true,
+      index: true,
+    },
+    reject_reason: { type: String, default: null },
+    receipt: { type: String },
+    client_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Client",
+      required: true,
+      index: true,
+    },
+  },
+  { timestamps: true, collection: "orders" },
+);
+
+export async function getMasterOrderModel(): Promise<mongoose.Model<any>> {
+  if (MasterOrderModel) return MasterOrderModel;
+
+  // تأكد من تحميل Package و PaymentMethod و Client حتى يعمل populate
+  await getMasterPackageModel();
+  await getMasterPaymentMethodModel();
+  await getClientLookupModel();
+
+  const conn = await getMasterConnection();
+  MasterOrderModel =
+    conn.models.Order || conn.model("Order", masterOrderSchema);
+  return MasterOrderModel;
 }
 
 // ── Tenant Resolution ──────────────────────────────────────────────────────
