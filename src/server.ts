@@ -14,6 +14,7 @@ import themeRoutes from "./routes/theme.routes.js";
 import subscriptionRoutes from "./routes/subscription.routes.js";
 import customDomainRoutes from "./routes/customDomain.routes.js";
 import orderRoutes from "./routes/order.routes.js";
+import { initPeriodicCustomDomainWorker } from "./services/customDomainBackground.service.js";
 
 
 // root@hostego:/var/www/vhosts/wegz.org/wegz-backend# git pull
@@ -76,6 +77,9 @@ const start = async () => {
   try {
     // 1. الاتصال بقاعدة البيانات الرئيسية (SuperWegz) للتحقق من العملاء
     await getMasterConnection();
+
+    // تشغيل مراقب الـ Custom Domains في الخلفية لمتابعة الـ DNS وإصدار شهادات الـ SSL تلقائياً
+    initPeriodicCustomDomainWorker();
 
     // 2. الاتصال الافتراضي كـ fallback إذا كان متوفراً
     if (process.env.MONGO_URI) {

@@ -8,7 +8,9 @@ import {
   deleteSiteAlias,
   verifyDomainDns,
   installAliasSsl,
+  ensureAliasDnsZone,
 } from "../services/plesk.service.js";
+import { startDomainBackgroundVerification } from "../services/customDomainBackground.service.js";
 
 /**
  * يجلب سجل العميل الخاص بالـ tenant الحالي مع التحقق من ملكية المعرّف إن وُجد في المسار
@@ -186,6 +188,11 @@ export const assignCustomDomainHandler = async (req: Request, res: Response) => 
     }
     await client.save();
 
+    // إذا لم يوجه الـ DNS بعد، نبدأ الفحص والمراقبة في الخلفية تلقائياً
+    if (!dnsStatus.pointed) {
+      startDomainBackgroundVerification(client._id.toString(), cleanDomain);
+    }
+
     const dnsInfo = await getServerDnsInfo();
 
     return res.status(201).json({
@@ -284,13 +291,16 @@ export const verifyCustomDomainDnsHandler = async (req: Request, res: Response) 
         .catch((sslErr) => {
           console.warn(`[SSL Auto-Issue notice]: ${sslErr.message}`);
         });
+    } else if (!dnsCheck.pointed) {
+      // إذا لم يكتمل الـ DNS بعد، نفعّل المراقبة في الخلفية
+      startDomainBackgroundVerification(client._id.toString(), client.custom_domain);
     }
 
     return res.json({
       success: true,
       message: dnsCheck.pointed
         ? "DNS verified successfully! Domain is active."
-        : "DNS is not pointing to this server yet. Please verify your A and CNAME records.",
+        : "DNS is not pointing to this server yet. A background watcher is now active to automatically issue SSL once DNS propagates.",
       data: {
         domain: client.custom_domain,
         pointed: dnsCheck.pointed,
@@ -324,22 +334,42 @@ export const installCustomDomainSslHandler = async (req: Request, res: Response)
       });
     }
 
-    const dnsCheck = await verifyDomainDns(client.custom_domain);
+    let dnsCheck = await verifyDomainDns(client.custom_domain);
+
+    // إذا لم يوجه الـ DNS بعد، نحاول التأكد من تفعيل الـ DNS Zone في Plesk أولاً
     if (!dnsCheck.pointed) {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot issue SSL for "${client.custom_domain}". The domain does not point to this server (${dnsCheck.expectedIp}) yet.`,
+      await ensureAliasDnsZone(client.custom_domain).catch(() => {});
+      dnsCheck = await verifyDomainDns(client.custom_domain);
+    }
+
+    // إذا تم توجيه الدومين بنجاح، نصدر شهادة الـ SSL فوراً
+    if (dnsCheck.pointed) {
+      const sslResult = await installAliasSsl(client.custom_domain);
+      client.custom_domain_ssl = true;
+      client.custom_domain_status = "active";
+      client.custom_domain_verified_at = new Date();
+      await client.save();
+
+      return res.json({
+        success: true,
+        message: `SSL certificate installed successfully for ${client.custom_domain}`,
+        data: sslResult,
       });
     }
 
-    const sslResult = await installAliasSsl(client.custom_domain);
-    client.custom_domain_ssl = true;
-    await client.save();
+    // إذا لم يوجه الـ DNS بعد، نبدأ مهمة المراقبة والإصدار التلقائي في الخلفية
+    startDomainBackgroundVerification(client._id.toString(), client.custom_domain);
 
-    return res.json({
+    return res.status(200).json({
       success: true,
-      message: `SSL certificate installed successfully for ${client.custom_domain}`,
-      data: sslResult,
+      message: `النطاق "${client.custom_domain}" لم يكتمل انتشار الـ DNS له بعد. تم تشغيل فاحص المراقبة في الخلفية، وسيتم إصدار شهادة الـ SSL وتفعيل النطاق تلقائياً بمجرد اكتمال التوجيه إلى (${dnsCheck.expectedIp}).`,
+      data: {
+        domain: client.custom_domain,
+        status: client.custom_domain_status || "pending_dns",
+        ssl_status: "pending_background_verification",
+        expected_ip: dnsCheck.expectedIp,
+        current_ips: dnsCheck.currentIps,
+      },
     });
   } catch (err: any) {
     console.error("❌ Install custom domain SSL error:", err);

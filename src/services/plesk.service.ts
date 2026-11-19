@@ -214,6 +214,8 @@ export async function createSiteAlias(
       target,
       "-status",
       "true",
+      "-dns",
+      "true",
       "-web",
       "true",
       "-seo-redirect",
@@ -222,9 +224,36 @@ export async function createSiteAlias(
   } catch (err: any) {
     if (/already\s+exists?/i.test(err.message)) {
       console.warn(`[Plesk] Site alias ${cleanAlias} already exists — reusing`);
+      await ensureAliasDnsZone(cleanAlias).catch(() => {});
       return { success: true, reused: true, alias: cleanAlias };
     }
     throw err;
+  }
+}
+
+/**
+ * التأكد من تفعيل إدارة الـ DNS في Plesk للـ Site Alias
+ * في حال قام العميل بتوجيه الـ Nameservers الخاصة بنطاقه إلى السيرفر
+ */
+export async function ensureAliasDnsZone(aliasDomain: string): Promise<boolean> {
+  const { host, apiKey } = getPleskConfig();
+  const cleanAlias = normalizeDomainName(aliasDomain);
+
+  const pleskReady = !!apiKey && !!host && host !== "localhost";
+  if (!pleskReady) return true;
+
+  try {
+    console.log(`[Plesk] Ensuring DNS zone for alias: ${cleanAlias}`);
+    await executePleskCli("sitealias", [
+      "--update",
+      cleanAlias,
+      "-dns",
+      "true",
+    ]);
+    return true;
+  } catch (err: any) {
+    console.warn(`[Plesk] ensureAliasDnsZone notice: ${err.message}`);
+    return false;
   }
 }
 
