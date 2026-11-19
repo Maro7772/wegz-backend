@@ -9,6 +9,7 @@ import {
   verifyDomainDns,
   installDomainSsl,
 } from "../services/plesk.service.js";
+import { startDomainBackgroundSetup } from "../services/customDomainBackground.service.js";
 
 /**
  * يجلب سجل العميل الخاص بالـ tenant الحالي مع التحقق من ملكية المعرّف إن وُجد في المسار
@@ -207,6 +208,13 @@ export const assignCustomDomainHandler = async (req: Request, res: Response) => 
         console.warn(`[CustomDomain] SSL installation notice: ${sslErr.message}`);
         sslResult = { success: false, error: sslErr.message };
       }
+    } else {
+      // الـ DNS قيد الانتشار: تشغيل فاحص الخلفية تلقائياً لإصدار الـ SSL فور انتشار الـ DNS
+      startDomainBackgroundSetup(
+        client._id.toString(),
+        cleanDomain,
+        client.subdomain,
+      );
     }
 
     const dnsInfo = await getServerDnsInfo();

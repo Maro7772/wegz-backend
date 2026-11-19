@@ -212,11 +212,17 @@ export async function getServerDnsInfo(): Promise<{
  */
 export async function createCustomDomainWebsite(
   customDomain: string,
-  subdomain: string,
+  subdomain?: string,
+  options: {
+    wwwRoot?: string;
+    nodeVersion?: string;
+  } = {},
 ): Promise<any> {
   const { parentDomain } = getPleskConfig();
   const cleanDomain = normalizeDomainName(customDomain);
-  const wwwRoot = `${subdomain}.${parentDomain}`;
+  // التوجيه لنفس مجلد الفرونت إند كما في wegz.org (/httpdocs/dist)
+  const wwwRoot = options.wwwRoot || process.env.CUSTOM_DOMAIN_WWW_ROOT || "httpdocs/dist";
+  const nodeVersion = options.nodeVersion || process.env.NODE_JS_VERSION || "22.23.5";
 
   if (!isPleskReady()) {
     const { host, apiKey } = getPleskConfig();
@@ -233,8 +239,9 @@ export async function createCustomDomainWebsite(
     `[Plesk] Creating website: ${cleanDomain} | webspace: ${parentDomain} | www-root: ${wwwRoot}`,
   );
 
+  let siteResult: any = null;
   try {
-    const result = await executePleskCli("site", [
+    siteResult = await executePleskCli("site", [
       "--create",
       cleanDomain,
       "-webspace-name",
@@ -244,14 +251,59 @@ export async function createCustomDomainWebsite(
       "-www-root",
       wwwRoot,
     ]);
-    return result;
   } catch (err: any) {
     if (/already\s+exists?/i.test(err.message)) {
-      console.warn(`[Plesk] Website ${cleanDomain} already exists — reusing`);
-      return { success: true, reused: true, domain: cleanDomain };
+      console.warn(`[Plesk] Website ${cleanDomain} already exists — updating www-root to ${wwwRoot}`);
+      await executePleskCli("site", [
+        "--update",
+        cleanDomain,
+        "-www-root",
+        wwwRoot,
+      ]).catch((uErr) => console.warn(`[Plesk] site update www-root notice: ${uErr.message}`));
+      siteResult = { success: true, reused: true, domain: cleanDomain };
+    } else {
+      throw err;
     }
-    throw err;
   }
+
+  // تفعيل وضبط Node.js على الدومين الجديد ليتطابق مع wegz.org
+  try {
+    console.log(`[Plesk] Enabling Node.js ${nodeVersion} on ${cleanDomain}...`);
+    await executePleskCli("extension", [
+      "--call",
+      "nodejs",
+      "--enable",
+      "-domain",
+      cleanDomain,
+      "-version",
+      nodeVersion,
+    ]);
+
+    // ضبط إعدادات Node.js (App Root: /httpdocs, Document Root: /httpdocs/dist)
+    try {
+      await executePleskCli("extension", [
+        "--call",
+        "nodejs",
+        "--set",
+        "-domain",
+        cleanDomain,
+        "-app-root",
+        "/httpdocs",
+        "-doc-root",
+        "/httpdocs/dist",
+        "-app-file",
+        "index.html",
+        "-app-mode",
+        "production",
+      ]);
+    } catch (setErr: any) {
+      console.warn(`[Plesk] Node.js set notice for ${cleanDomain}: ${setErr.message}`);
+    }
+  } catch (nodeErr: any) {
+    console.warn(`[Plesk] Node.js enable notice for ${cleanDomain}: ${nodeErr.message}`);
+  }
+
+  return siteResult;
 }
 
 /**
