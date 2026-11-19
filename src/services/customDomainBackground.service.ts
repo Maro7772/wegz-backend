@@ -1,141 +1,192 @@
 import { getClientLookupModel } from "../config/tenant.js";
 import {
+  createCustomDomainWebsite,
   verifyDomainDns,
-  installAliasSsl,
-  ensureAliasDnsZone,
+  installDomainSsl,
 } from "./plesk.service.js";
 
-// قائمة بأسماء النطاقات التي يجري فحصها في الخلفية حالياً لمنع تكرار الـ jobs
-const activeDomainJobs = new Set<string>();
-
-interface BackgroundVerificationOptions {
-  maxAttempts?: number;
-  initialDelayMs?: number;
-}
+// قائمة النطاقات التي يجري معالجتها حالياً لمنع تكرار الـ jobs
+const activeJobs = new Set<string>();
 
 /**
- * يبدأ عملية فحص انتشار الـ DNS وإصدار شهادة SSL تلقائياً في الخلفية
- * تُجرى محاولات ذكية متتالية:
- * - كل 30 ثانية لأول 6 محاولات
- * - كل دقيقتين للمحاولات التالية
- * - كل 5 دقائق حتى اكتمال 60 محاولة (حوالي 4-5 ساعات)
- * بمجرد توجيه الـ DNS يتم إصدار الشهادة تلقائياً وتفعيل النطاق في قاعدة البيانات
+ * يبدأ عملية الإعداد الكاملة في الخلفية:
+ * 1. إنشاء Website في Plesk (site --create) → DNS Zone تلقائية
+ * 2. فحص انتشار الـ DNS (retry بـ backoff ذكي)
+ * 3. إصدار شهادة SSL تلقائياً بمجرد اكتمال التوجيه
+ * 4. تحديث قاعدة البيانات
+ *
+ * الجدول الزمني للمحاولات:
+ * - كل 30 ثانية لأول 6 محاولات (3 دقائق)
+ * - كل دقيقتين للمحاولات 7-15 (18 دقيقة)
+ * - كل 5 دقائق حتى محاولة 60 (حوالي 4 ساعات)
  */
-export function startDomainBackgroundVerification(
+export function startDomainBackgroundSetup(
   clientId: string,
   domain: string,
-  options: BackgroundVerificationOptions = {},
+  subdomain: string,
 ): void {
   const cleanDomain = domain.trim().toLowerCase();
-  if (!cleanDomain) return;
+  if (!cleanDomain || !subdomain) return;
 
-  if (activeDomainJobs.has(cleanDomain)) {
-    console.log(`[Background Domain] Verification already active for "${cleanDomain}"`);
+  if (activeJobs.has(cleanDomain)) {
+    console.log(`[Background] Job already active for "${cleanDomain}"`);
     return;
   }
 
-  activeDomainJobs.add(cleanDomain);
-  console.log(`🚀 [Background Domain] Started background SSL watcher for "${cleanDomain}" (Client ID: ${clientId})`);
+  activeJobs.add(cleanDomain);
+  console.log(
+    `🚀 [Background] Started full setup for "${cleanDomain}" (subdomain: ${subdomain}, clientId: ${clientId})`,
+  );
 
   let attempt = 0;
-  const maxAttempts = options.maxAttempts || 60;
+  const maxAttempts = 60;
+  let websiteCreated = false;
 
-  const checkNext = async () => {
+  const tick = async () => {
     attempt++;
     try {
-      // محاولة تفعيل الـ DNS Zone في السيرفر تحسباً لو أن الدومين موجه لـ Nameservers السيرفر
-      if (attempt === 1) {
-        await ensureAliasDnsZone(cleanDomain).catch(() => {});
-      }
-
-      const dnsCheck = await verifyDomainDns(cleanDomain);
-
-      if (dnsCheck.pointed) {
-        console.log(`✅ [Background Domain] Domain "${cleanDomain}" is now pointing to server (${dnsCheck.expectedIp})!`);
-        console.log(`🔐 [Background Domain] Auto-issuing SSL certificate for "${cleanDomain}"...`);
-
+      // ── الخطوة 1: إنشاء الـ Website في Plesk (مرة واحدة) ──────────────
+      if (!websiteCreated) {
         try {
-          await installAliasSsl(cleanDomain);
-          console.log(`🎉 [Background Domain] SSL successfully installed for "${cleanDomain}"!`);
+          console.log(
+            `📦 [Background] Creating website "${cleanDomain}" -> www-root: ${subdomain}...`,
+          );
+          await createCustomDomainWebsite(cleanDomain, subdomain);
+          websiteCreated = true;
+          console.log(`✅ [Background] Website "${cleanDomain}" created successfully`);
 
+          // تحديث الحالة في الـ DB
           const ClientModel = await getClientLookupModel();
           await ClientModel.findByIdAndUpdate(clientId, {
-            custom_domain_status: "active",
-            custom_domain_ssl: true,
-            custom_domain_verified_at: new Date(),
+            custom_domain_status: "pending_dns",
           });
-
-          console.log(`💾 [Background Domain] Client record updated for "${cleanDomain}"`);
-        } catch (sslErr: any) {
-          console.error(`❌ [Background Domain] SSL auto-issuance error for "${cleanDomain}":`, sslErr.message);
-          // إذا فشل الـ SSL مؤقتاً، نستمر في المحاولة
-          if (attempt < maxAttempts) {
-            scheduleNext();
+        } catch (err: any) {
+          // لو Website موجود بالفعل (reused)، نكمل
+          if (/already\s+exists?/i.test(err.message) || /reused/i.test(err.message)) {
+            websiteCreated = true;
+            console.log(`♻️ [Background] Website "${cleanDomain}" already exists — continuing`);
+          } else {
+            console.error(
+              `❌ [Background] Website creation failed for "${cleanDomain}":`,
+              err.message,
+            );
+            // نعيد المحاولة في الجولة الجاية
+            if (attempt < maxAttempts) {
+              scheduleNext();
+              return;
+            }
+            finish();
             return;
           }
         }
+      }
 
-        activeDomainJobs.delete(cleanDomain);
+      // ── الخطوة 2: فحص انتشار الـ DNS ──────────────────────────────────
+      const dnsCheck = await verifyDomainDns(cleanDomain);
+
+      if (!dnsCheck.pointed) {
+        if (attempt >= maxAttempts) {
+          console.warn(
+            `⚠️ [Background] Max attempts (${maxAttempts}) reached for "${cleanDomain}". Stopping.`,
+          );
+          finish();
+          return;
+        }
+        scheduleNext();
         return;
       }
 
-      if (attempt >= maxAttempts) {
-        console.warn(`⚠️ [Background Domain] Max verification attempts (${maxAttempts}) reached for "${cleanDomain}". Watcher paused.`);
-        activeDomainJobs.delete(cleanDomain);
-        return;
+      console.log(
+        `✅ [Background] DNS for "${cleanDomain}" is pointing to ${dnsCheck.expectedIp}!`,
+      );
+
+      // ── الخطوة 3: إصدار شهادة SSL ─────────────────────────────────────
+      console.log(`🔐 [Background] Issuing SSL for "${cleanDomain}"...`);
+      try {
+        await installDomainSsl(cleanDomain);
+        console.log(`🎉 [Background] SSL installed for "${cleanDomain}"!`);
+
+        const ClientModel = await getClientLookupModel();
+        await ClientModel.findByIdAndUpdate(clientId, {
+          custom_domain_status: "active",
+          custom_domain_ssl: true,
+          custom_domain_verified_at: new Date(),
+        });
+
+        console.log(`💾 [Background] Client record updated — "${cleanDomain}" is fully active`);
+      } catch (sslErr: any) {
+        console.error(
+          `❌ [Background] SSL failed for "${cleanDomain}":`,
+          sslErr.message,
+        );
+        // نعيد المحاولة — ممكن Let's Encrypt لسه محتاج وقت
+        if (attempt < maxAttempts) {
+          scheduleNext();
+          return;
+        }
       }
 
-      scheduleNext();
+      finish();
     } catch (err: any) {
-      console.warn(`[Background Domain] Verification tick error for "${cleanDomain}":`, err.message);
+      console.warn(`[Background] Tick error for "${cleanDomain}":`, err.message);
       if (attempt < maxAttempts) {
         scheduleNext();
       } else {
-        activeDomainJobs.delete(cleanDomain);
+        finish();
       }
     }
   };
 
   const scheduleNext = () => {
-    let delayMs = 30_000; // 30 ثانية في البداية
-    if (attempt > 15) {
-      delayMs = 300_000; // 5 دقائق بعد أول 15 محاولة
-    } else if (attempt > 5) {
-      delayMs = 120_000; // دقيقتان
+    let delayMs: number;
+    if (attempt <= 6) {
+      delayMs = 30_000; // كل 30 ثانية
+    } else if (attempt <= 15) {
+      delayMs = 120_000; // كل دقيقتين
+    } else {
+      delayMs = 300_000; // كل 5 دقائق
     }
-
-    setTimeout(checkNext, delayMs);
+    setTimeout(tick, delayMs);
   };
 
-  // نبدأ أول محاولة بعد مهلة قصيرة
-  setTimeout(checkNext, options.initialDelayMs || 5_000);
+  const finish = () => {
+    activeJobs.delete(cleanDomain);
+  };
+
+  // نبدأ أول محاولة بعد 3 ثوانٍ
+  setTimeout(tick, 3_000);
 }
 
 /**
- * فاحص دوري على مستوى النظام يبحث عن أي نطاق مخصص قيد الانتظار
- * مفيد بعد إعادة تشغيل السيرفر لضمان عدم ضياع أي دومين لم تكتمل شهادته
+ * فاحص دوري لأي نطاقات معلقة — يعمل بعد إعادة تشغيل السيرفر
+ * يبحث عن أي عميل حالته pending_setup أو pending_dns أو ssl=false
  */
-export async function runPendingCustomDomainsCheck(): Promise<void> {
+export async function runPendingDomainsCheck(): Promise<void> {
   try {
     const ClientModel = await getClientLookupModel();
     const pendingClients = await ClientModel.find({
       custom_domain: { $exists: true, $nin: [null, ""] },
       custom_domain_status: { $ne: "disabled" },
       $or: [
+        { custom_domain_status: "pending_setup" },
         { custom_domain_status: "pending_dns" },
         { custom_domain_ssl: false },
       ],
-    }).select("_id custom_domain custom_domain_status custom_domain_ssl");
+    }).select("_id subdomain custom_domain custom_domain_status custom_domain_ssl");
 
     if (!pendingClients || pendingClients.length === 0) return;
 
-    console.log(`[Background Scanner] Checking ${pendingClients.length} pending custom domain(s)...`);
+    console.log(
+      `[Background Scanner] Found ${pendingClients.length} pending custom domain(s)`,
+    );
 
     for (const client of pendingClients) {
-      if (!activeDomainJobs.has(client.custom_domain)) {
-        startDomainBackgroundVerification(client._id.toString(), client.custom_domain, {
-          initialDelayMs: 2_000,
-        });
+      if (!activeJobs.has(client.custom_domain)) {
+        startDomainBackgroundSetup(
+          client._id.toString(),
+          client.custom_domain,
+          client.subdomain,
+        );
       }
     }
   } catch (err: any) {
@@ -144,18 +195,20 @@ export async function runPendingCustomDomainsCheck(): Promise<void> {
 }
 
 /**
- * تهيئة الجدولة الدورية عند إقلاع السيرفر
+ * تهيئة الفاحص الدوري عند إقلاع السيرفر
  */
 export function initPeriodicCustomDomainWorker(): void {
   // فحص مبدئي بعد دقيقة من بدء السيرفر
   setTimeout(() => {
-    runPendingCustomDomainsCheck().catch(() => {});
+    runPendingDomainsCheck().catch(() => {});
   }, 60_000);
 
-  // تكرار الفحص الدوري كل 15 دقيقة
+  // تكرار الفحص كل 15 دقيقة
   setInterval(() => {
-    runPendingCustomDomainsCheck().catch(() => {});
+    runPendingDomainsCheck().catch(() => {});
   }, 15 * 60_000);
 
-  console.log("🕒 [Background Worker] Custom Domain SSL auto-issuance worker initialized.");
+  console.log(
+    "🕒 [Background Worker] Custom Domain auto-setup worker initialized.",
+  );
 }

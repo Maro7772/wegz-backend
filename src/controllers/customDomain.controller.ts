@@ -4,13 +4,10 @@ import {
   getServerDnsInfo,
   normalizeDomainName,
   validateCustomDomain,
-  createSiteAlias,
-  deleteSiteAlias,
+  deleteCustomDomainWebsite,
   verifyDomainDns,
-  installAliasSsl,
-  ensureAliasDnsZone,
 } from "../services/plesk.service.js";
-import { startDomainBackgroundVerification } from "../services/customDomainBackground.service.js";
+import { startDomainBackgroundSetup } from "../services/customDomainBackground.service.js";
 
 /**
  * يجلب سجل العميل الخاص بالـ tenant الحالي مع التحقق من ملكية المعرّف إن وُجد في المسار
@@ -115,8 +112,10 @@ export const listCustomDomainsHandler = async (req: Request, res: Response) => {
 
 /**
  * POST /api/admin/custom-domains
- * يربط دومين مخصص بـ tenant الواجهة الأمامية الحالي تلقائيًا دون الحاجة لإرسال subdomain
+ * يربط دومين مخصص بالعميل الحالي — الـ subdomain يتحدد تلقائياً من الـ tenant
  * body: { custom_domain: string }
+ *
+ * كل العمليات الثقيلة (إنشاء website في Plesk، فحص DNS، إصدار SSL) تتم في الخلفية
  */
 export const assignCustomDomainHandler = async (req: Request, res: Response) => {
   try {
@@ -157,58 +156,42 @@ export const assignCustomDomainHandler = async (req: Request, res: Response) => 
 
     const parentDomain = process.env.PLESK_PARENT_DOMAIN || PARENT_DOMAIN || "wegz.org";
 
-    // حذف الـ Alias القديم من Plesk وإعادة ضبط حالة SSL إذا تم تغيير الدومين
+    // حذف الـ Website القديم من Plesk إذا تم تغيير الدومين
     const previousDomain = client.custom_domain;
     if (previousDomain && previousDomain !== cleanDomain) {
-      await deleteSiteAlias(previousDomain).catch((err) =>
-        console.warn(`[CustomDomain] Delete previous alias notice: ${err.message}`),
+      deleteCustomDomainWebsite(previousDomain).catch((err) =>
+        console.warn(`[CustomDomain] Delete previous website notice: ${err.message}`),
       );
       client.custom_domain_ssl = false;
       client.custom_domain_verified_at = undefined;
     }
 
-    // 1. إنشاء الـ Site Alias في Plesk
-    let pleskAliasResult: any = null;
-    try {
-      pleskAliasResult = await createSiteAlias(cleanDomain, parentDomain);
-    } catch (err: any) {
-      console.warn(`[CustomDomain] Plesk alias warning: ${err.message}`);
-    }
-
-    // 2. فحص انتشار الـ DNS مباشرة لمعرفة هل العميل قام بالتوجيه أم لا
-    const dnsStatus = await verifyDomainDns(cleanDomain);
-    const domainStatus = dnsStatus.pointed ? "active" : "pending_dns";
-
-    // 3. تحديث بيانات العميل في الـ Master DB
+    // تحديث بيانات العميل في الـ Master DB فوراً
     client.custom_domain = cleanDomain;
-    client.custom_domain_status = domainStatus;
+    client.custom_domain_status = "pending_setup";
     client.custom_domain_created_at = new Date();
-    if (dnsStatus.pointed) {
-      client.custom_domain_verified_at = new Date();
-    }
     await client.save();
 
-    // إذا لم يوجه الـ DNS بعد، نبدأ الفحص والمراقبة في الخلفية تلقائياً
-    if (!dnsStatus.pointed) {
-      startDomainBackgroundVerification(client._id.toString(), cleanDomain);
-    }
+    // تشغيل كل العمليات في الخلفية: إنشاء Website → فحص DNS → إصدار SSL
+    startDomainBackgroundSetup(
+      client._id.toString(),
+      cleanDomain,
+      client.subdomain,
+    );
 
     const dnsInfo = await getServerDnsInfo();
 
     return res.status(201).json({
       success: true,
-      message: dnsStatus.pointed
-        ? "Custom domain assigned and DNS is pointing successfully!"
-        : "Custom domain assigned. Please update your domain DNS records as indicated.",
+      message:
+        "Custom domain setup started! Website creation, DNS verification, and SSL will be configured automatically in the background.",
       data: {
         client_id: client._id,
         subdomain: client.subdomain,
         target_url: client.subdomain_url || `https://${client.subdomain}.${parentDomain}`,
         custom_domain: cleanDomain,
-        status: domainStatus,
-        dns_status: dnsStatus,
+        status: "pending_setup",
         dns_instructions: dnsInfo.dnsRecords,
-        plesk_result: pleskAliasResult,
       },
     });
   } catch (err: any) {
@@ -222,7 +205,7 @@ export const assignCustomDomainHandler = async (req: Request, res: Response) => 
 
 /**
  * DELETE /api/admin/custom-domains/:id
- * يحذف النطاق المخصص من العميل ويلغي الـ Alias من Plesk
+ * يحذف النطاق المخصص من العميل ويحذف الـ Website من Plesk
  */
 export const removeCustomDomainHandler = async (req: Request, res: Response) => {
   try {
@@ -237,8 +220,9 @@ export const removeCustomDomainHandler = async (req: Request, res: Response) => 
       });
     }
 
-    await deleteSiteAlias(previousDomain).catch((err) =>
-      console.warn(`[CustomDomain] Delete alias notice: ${err.message}`),
+    // حذف الـ Website من Plesk في الخلفية
+    deleteCustomDomainWebsite(previousDomain).catch((err) =>
+      console.warn(`[CustomDomain] Delete website notice: ${err.message}`),
     );
 
     client.custom_domain = undefined;
@@ -261,7 +245,8 @@ export const removeCustomDomainHandler = async (req: Request, res: Response) => 
 
 /**
  * POST /api/admin/custom-domains/:id/verify-dns
- * فحص انتشار الـ DNS للنطاق وتحديث حالته لـ active إذا كان يشير للسيرفر
+ * فحص انتشار الـ DNS للنطاق وتحديث حالته
+ * إذا لم يكتمل بعد يبدأ فاحص المراقبة في الخلفية تلقائياً
  */
 export const verifyCustomDomainDnsHandler = async (req: Request, res: Response) => {
   try {
@@ -281,26 +266,22 @@ export const verifyCustomDomainDnsHandler = async (req: Request, res: Response) 
       client.custom_domain_status = "active";
       client.custom_domain_verified_at = new Date();
       await client.save();
+    }
 
-      // محاولة إصدار شهادة SSL تلقائياً بمجرد تأكيد الـ DNS
-      installAliasSsl(client.custom_domain)
-        .then(async () => {
-          client.custom_domain_ssl = true;
-          await client.save();
-        })
-        .catch((sslErr) => {
-          console.warn(`[SSL Auto-Issue notice]: ${sslErr.message}`);
-        });
-    } else if (!dnsCheck.pointed) {
-      // إذا لم يكتمل الـ DNS بعد، نفعّل المراقبة في الخلفية
-      startDomainBackgroundVerification(client._id.toString(), client.custom_domain);
+    // إذا لم يكتمل الـ DNS بعد، نعيد تشغيل المراقبة في الخلفية
+    if (!dnsCheck.pointed) {
+      startDomainBackgroundSetup(
+        client._id.toString(),
+        client.custom_domain,
+        client.subdomain,
+      );
     }
 
     return res.json({
       success: true,
       message: dnsCheck.pointed
         ? "DNS verified successfully! Domain is active."
-        : "DNS is not pointing to this server yet. A background watcher is now active to automatically issue SSL once DNS propagates.",
+        : "DNS is not pointing to this server yet. Background watcher is active.",
       data: {
         domain: client.custom_domain,
         pointed: dnsCheck.pointed,
@@ -320,7 +301,7 @@ export const verifyCustomDomainDnsHandler = async (req: Request, res: Response) 
 
 /**
  * POST /api/admin/custom-domains/:id/ssl
- * إصدار شهادة SSL للنطاق المخصص عبر Plesk
+ * إصدار شهادة SSL للنطاق المخصص — إذا الـ DNS لم يكتمل بعد، تشتغل في الخلفية تلقائياً
  */
 export const installCustomDomainSslHandler = async (req: Request, res: Response) => {
   try {
@@ -334,41 +315,21 @@ export const installCustomDomainSslHandler = async (req: Request, res: Response)
       });
     }
 
-    let dnsCheck = await verifyDomainDns(client.custom_domain);
+    // نعيد تشغيل الفاحص الكامل (website + DNS + SSL) في الخلفية
+    startDomainBackgroundSetup(
+      client._id.toString(),
+      client.custom_domain,
+      client.subdomain,
+    );
 
-    // إذا لم يوجه الـ DNS بعد، نحاول التأكد من تفعيل الـ DNS Zone في Plesk أولاً
-    if (!dnsCheck.pointed) {
-      await ensureAliasDnsZone(client.custom_domain).catch(() => {});
-      dnsCheck = await verifyDomainDns(client.custom_domain);
-    }
-
-    // إذا تم توجيه الدومين بنجاح، نصدر شهادة الـ SSL فوراً
-    if (dnsCheck.pointed) {
-      const sslResult = await installAliasSsl(client.custom_domain);
-      client.custom_domain_ssl = true;
-      client.custom_domain_status = "active";
-      client.custom_domain_verified_at = new Date();
-      await client.save();
-
-      return res.json({
-        success: true,
-        message: `SSL certificate installed successfully for ${client.custom_domain}`,
-        data: sslResult,
-      });
-    }
-
-    // إذا لم يوجه الـ DNS بعد، نبدأ مهمة المراقبة والإصدار التلقائي في الخلفية
-    startDomainBackgroundVerification(client._id.toString(), client.custom_domain);
-
-    return res.status(200).json({
+    return res.json({
       success: true,
-      message: `النطاق "${client.custom_domain}" لم يكتمل انتشار الـ DNS له بعد. تم تشغيل فاحص المراقبة في الخلفية، وسيتم إصدار شهادة الـ SSL وتفعيل النطاق تلقائياً بمجرد اكتمال التوجيه إلى (${dnsCheck.expectedIp}).`,
+      message:
+        "SSL setup started in the background. The certificate will be issued automatically once DNS is verified.",
       data: {
         domain: client.custom_domain,
-        status: client.custom_domain_status || "pending_dns",
-        ssl_status: "pending_background_verification",
-        expected_ip: dnsCheck.expectedIp,
-        current_ips: dnsCheck.currentIps,
+        status: client.custom_domain_status,
+        ssl_status: "pending_background",
       },
     });
   } catch (err: any) {

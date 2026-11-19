@@ -13,6 +13,11 @@ function getPleskConfig() {
   };
 }
 
+function isPleskReady(): boolean {
+  const { host, apiKey } = getPleskConfig();
+  return !!apiKey && !!host && host !== "localhost";
+}
+
 /**
  * تنفيذ أمر Plesk CLI عبر REST API v2 باستخدام node:https المدمج
  */
@@ -88,6 +93,10 @@ async function executePleskCli(utility: string, args: string[]): Promise<any> {
   });
 }
 
+// ============================================================================
+// Domain name utilities
+// ============================================================================
+
 /**
  * تنظيف اسم الدومين المخصص وإزالة البروتوكول والمسارات
  * مثال: "https://www.sss.net/page" -> "www.sss.net"
@@ -128,6 +137,10 @@ export function validateCustomDomain(domain: string): string | null {
 
   return null;
 }
+
+// ============================================================================
+// Server DNS info
+// ============================================================================
 
 /**
  * جلب بيانات السيرفر وإعدادات الـ DNS المطلوبة لتوجيه أي Custom Domain إليه
@@ -185,100 +198,84 @@ export async function getServerDnsInfo(): Promise<{
   };
 }
 
-/**
- * إنشاء Domain Alias (Site Alias) في Plesk يوجه إلى الموقع الأساسي
- */
-export async function createSiteAlias(
-  aliasDomain: string,
-  targetSite?: string,
-): Promise<any> {
-  const { host, apiKey, parentDomain } = getPleskConfig();
-  const cleanAlias = normalizeDomainName(aliasDomain);
-  const target = targetSite || parentDomain;
+// ============================================================================
+// Custom Domain Website Management (Plesk site --create)
+// ============================================================================
 
-  const pleskReady = !!apiKey && !!host && host !== "localhost";
-  if (!pleskReady) {
+/**
+ * إنشاء Website كامل في Plesk للدومين المخصص
+ * يستخدم `plesk bin site --create` بدلاً من `sitealias`
+ * هذا ينشئ DNS Zone تلقائياً + hosting + www-root يشير لفولدر الـ subdomain
+ *
+ * @param customDomain - الدومين المخصص (مثل truckzita.com)
+ * @param subdomain    - اسم الـ subdomain الخاص بالعميل (مثل truckzita)
+ */
+export async function createCustomDomainWebsite(
+  customDomain: string,
+  subdomain: string,
+): Promise<any> {
+  const { parentDomain } = getPleskConfig();
+  const cleanDomain = normalizeDomainName(customDomain);
+  const wwwRoot = `${subdomain}.${parentDomain}`;
+
+  if (!isPleskReady()) {
     console.log(
-      `🧪 [DEV] Simulated Plesk site-alias creation: ${cleanAlias} -> ${target}`,
+      `🧪 [DEV] Simulated website creation: ${cleanDomain} -> www-root: ${wwwRoot}`,
     );
-    return { success: true, simulated: true, alias: cleanAlias, target };
+    return { success: true, simulated: true, domain: cleanDomain, wwwRoot };
   }
 
-  console.log(`[Plesk] Creating site alias: ${cleanAlias} for site: ${target}`);
+  console.log(
+    `[Plesk] Creating website: ${cleanDomain} | webspace: ${parentDomain} | www-root: ${wwwRoot}`,
+  );
 
   try {
-    return await executePleskCli("sitealias", [
+    const result = await executePleskCli("site", [
       "--create",
-      cleanAlias,
-      "-site",
-      target,
-      "-status",
+      cleanDomain,
+      "-webspace-name",
+      parentDomain,
+      "-hosting",
       "true",
-      "-dns",
-      "true",
-      "-web",
-      "true",
-      "-seo-redirect",
-      "false",
+      "-www-root",
+      wwwRoot,
     ]);
+    return result;
   } catch (err: any) {
     if (/already\s+exists?/i.test(err.message)) {
-      console.warn(`[Plesk] Site alias ${cleanAlias} already exists — reusing`);
-      await ensureAliasDnsZone(cleanAlias).catch(() => {});
-      return { success: true, reused: true, alias: cleanAlias };
+      console.warn(`[Plesk] Website ${cleanDomain} already exists — reusing`);
+      return { success: true, reused: true, domain: cleanDomain };
     }
     throw err;
   }
 }
 
 /**
- * التأكد من تفعيل إدارة الـ DNS في Plesk للـ Site Alias
- * في حال قام العميل بتوجيه الـ Nameservers الخاصة بنطاقه إلى السيرفر
+ * حذف Website من Plesk
  */
-export async function ensureAliasDnsZone(aliasDomain: string): Promise<boolean> {
-  const { host, apiKey } = getPleskConfig();
-  const cleanAlias = normalizeDomainName(aliasDomain);
+export async function deleteCustomDomainWebsite(
+  customDomain: string,
+): Promise<any> {
+  const cleanDomain = normalizeDomainName(customDomain);
 
-  const pleskReady = !!apiKey && !!host && host !== "localhost";
-  if (!pleskReady) return true;
-
-  try {
-    console.log(`[Plesk] Ensuring DNS zone for alias: ${cleanAlias}`);
-    await executePleskCli("sitealias", [
-      "--update",
-      cleanAlias,
-      "-dns",
-      "true",
-    ]);
-    return true;
-  } catch (err: any) {
-    console.warn(`[Plesk] ensureAliasDnsZone notice: ${err.message}`);
-    return false;
-  }
-}
-
-/**
- * حذف Domain Alias من Plesk
- */
-export async function deleteSiteAlias(aliasDomain: string): Promise<any> {
-  const { host, apiKey } = getPleskConfig();
-  const cleanAlias = normalizeDomainName(aliasDomain);
-
-  const pleskReady = !!apiKey && !!host && host !== "localhost";
-  if (!pleskReady) {
-    console.log(`🧪 [DEV] Simulated Plesk site-alias deletion: ${cleanAlias}`);
+  if (!isPleskReady()) {
+    console.log(`🧪 [DEV] Simulated website deletion: ${cleanDomain}`);
     return { success: true, simulated: true };
   }
 
-  console.log(`[Plesk] Deleting site alias: ${cleanAlias}`);
+  console.log(`[Plesk] Deleting website: ${cleanDomain}`);
 
   try {
-    return await executePleskCli("sitealias", ["--delete", cleanAlias]);
+    return await executePleskCli("site", ["--delete", cleanDomain]);
   } catch (err: any) {
-    console.warn(`[Plesk] Site alias deletion notice: ${err.message}`);
+    console.warn(`[Plesk] Website deletion notice: ${err.message}`);
     return { success: false, error: err.message };
   }
 }
+
+// ============================================================================
+// DNS Verification
+// ============================================================================
 
 /**
  * فحص انتشار الـ DNS للنطاق والتأكد من أنه يشير إلى السيرفر
@@ -317,20 +314,22 @@ export async function verifyDomainDns(
   }
 }
 
-/**
- * إصدار وتثبيت شهادة SSL مجانية (Let's Encrypt / SSL It) لـ Custom Domain Alias
- */
-export async function installAliasSsl(aliasDomain: string): Promise<any> {
-  const { host, apiKey } = getPleskConfig();
-  const cleanAlias = normalizeDomainName(aliasDomain);
+// ============================================================================
+// SSL
+// ============================================================================
 
-  const pleskReady = !!apiKey && !!host && host !== "localhost";
-  if (!pleskReady) {
-    console.log(`🧪 [DEV] Simulated SSL install for alias: ${cleanAlias}`);
+/**
+ * إصدار وتثبيت شهادة SSL مجانية (Let's Encrypt / SSL It) للدومين المخصص
+ */
+export async function installDomainSsl(domain: string): Promise<any> {
+  const cleanDomain = normalizeDomainName(domain);
+
+  if (!isPleskReady()) {
+    console.log(`🧪 [DEV] Simulated SSL install for: ${cleanDomain}`);
     return { success: true, simulated: true };
   }
 
-  console.log(`[Plesk] Issuing SSL for alias: ${cleanAlias}`);
+  console.log(`[Plesk] Issuing SSL for: ${cleanDomain}`);
 
   return executePleskCli("extension", [
     "--call",
@@ -338,7 +337,7 @@ export async function installAliasSsl(aliasDomain: string): Promise<any> {
     "--certificate",
     "-issue",
     "-domain",
-    cleanAlias,
+    cleanDomain,
     "-secure-domain",
   ]);
 }
