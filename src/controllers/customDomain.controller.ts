@@ -296,32 +296,37 @@ export const verifyCustomDomainDnsHandler = async (req: Request, res: Response) 
 
     const dnsCheck = await verifyDomainDns(client.custom_domain);
 
-    if (dnsCheck.pointed && client.custom_domain_status !== "active") {
-      client.custom_domain_status = "active";
-      client.custom_domain_verified_at = new Date();
+    let sslResult: any = null;
+    if (dnsCheck.pointed) {
+      if (client.custom_domain_status !== "active") {
+        client.custom_domain_status = "active";
+        client.custom_domain_verified_at = new Date();
+      }
+      if (!client.custom_domain_ssl) {
+        try {
+          sslResult = await installDomainSsl(client.custom_domain);
+          client.custom_domain_ssl = true;
+        } catch (sslErr: any) {
+          console.warn(`[CustomDomain] SSL installation error: ${sslErr.message}`);
+          sslResult = { success: false, error: sslErr.message };
+        }
+      }
       await client.save();
-    }
-
-    // إذا لم يكتمل الـ DNS بعد، نعيد تشغيل المراقبة في الخلفية
-    if (!dnsCheck.pointed) {
-      startDomainBackgroundSetup(
-        client._id.toString(),
-        client.custom_domain,
-        client.subdomain,
-      );
     }
 
     return res.json({
       success: true,
       message: dnsCheck.pointed
         ? "DNS verified successfully! Domain is active."
-        : "DNS is not pointing to this server yet. Background watcher is active.",
+        : `DNS is not pointing to this server (${dnsCheck.expectedIp}) yet.`,
       data: {
         domain: client.custom_domain,
         pointed: dnsCheck.pointed,
         current_ips: dnsCheck.currentIps,
         expected_ip: dnsCheck.expectedIp,
         status: client.custom_domain_status,
+        ssl_installed: client.custom_domain_ssl,
+        ssl_result: sslResult,
       },
     });
   } catch (err: any) {
