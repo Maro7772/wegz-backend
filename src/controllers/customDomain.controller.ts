@@ -4,10 +4,11 @@ import {
   getServerDnsInfo,
   normalizeDomainName,
   validateCustomDomain,
+  createCustomDomainWebsite,
   deleteCustomDomainWebsite,
   verifyDomainDns,
+  installDomainSsl,
 } from "../services/plesk.service.js";
-import { startDomainBackgroundSetup } from "../services/customDomainBackground.service.js";
 
 /**
  * يجلب سجل العميل الخاص بالـ tenant الحالي مع التحقق من ملكية المعرّف إن وُجد في المسار
@@ -166,31 +167,64 @@ export const assignCustomDomainHandler = async (req: Request, res: Response) => 
       client.custom_domain_verified_at = undefined;
     }
 
-    // تحديث بيانات العميل في الـ Master DB فوراً
+    // 1. إنشاء الـ Website في Plesk مباشرة لمشاهدة أي خطأ فوراً
+    console.log(`[CustomDomain] Creating website in Plesk for ${cleanDomain} (www-root: ${client.subdomain}.${parentDomain})...`);
+    let pleskResult: any = null;
+    try {
+      pleskResult = await createCustomDomainWebsite(cleanDomain, client.subdomain);
+      console.log(`[CustomDomain] Plesk website created:`, pleskResult);
+    } catch (pleskErr: any) {
+      console.error("❌ Plesk website creation error:", pleskErr);
+      return res.status(500).json({
+        success: false,
+        message: `Plesk website creation failed: ${pleskErr.message}`,
+        error: pleskErr.message,
+      });
+    }
+
+    // 2. فحص انتشار الـ DNS مباشرة لمعرفة هل العميل قام بالتوجيه أم لا
+    const dnsStatus = await verifyDomainDns(cleanDomain);
+    const domainStatus = dnsStatus.pointed ? "active" : "pending_dns";
+
+    // 3. تحديث بيانات العميل في الـ Master DB
     client.custom_domain = cleanDomain;
-    client.custom_domain_status = "pending_setup";
+    client.custom_domain_status = domainStatus;
     client.custom_domain_created_at = new Date();
+    if (dnsStatus.pointed) {
+      client.custom_domain_verified_at = new Date();
+    }
     await client.save();
 
-    // تشغيل كل العمليات في الخلفية: إنشاء Website → فحص DNS → إصدار SSL
-    startDomainBackgroundSetup(
-      client._id.toString(),
-      cleanDomain,
-      client.subdomain,
-    );
+    // 4. محاولة تثبيت الـ SSL إذا كان الـ DNS موجهاً بالفعل
+    let sslResult: any = null;
+    if (dnsStatus.pointed) {
+      try {
+        console.log(`[CustomDomain] DNS pointed, issuing SSL for ${cleanDomain}...`);
+        sslResult = await installDomainSsl(cleanDomain);
+        client.custom_domain_ssl = true;
+        await client.save();
+      } catch (sslErr: any) {
+        console.warn(`[CustomDomain] SSL installation notice: ${sslErr.message}`);
+        sslResult = { success: false, error: sslErr.message };
+      }
+    }
 
     const dnsInfo = await getServerDnsInfo();
 
     return res.status(201).json({
       success: true,
-      message:
-        "Custom domain setup started! Website creation, DNS verification, and SSL will be configured automatically in the background.",
+      message: dnsStatus.pointed
+        ? "Custom domain assigned, Plesk website created, and DNS verified successfully!"
+        : "Custom domain assigned and Plesk website created. Please update your domain DNS records as indicated.",
       data: {
         client_id: client._id,
         subdomain: client.subdomain,
         target_url: client.subdomain_url || `https://${client.subdomain}.${parentDomain}`,
         custom_domain: cleanDomain,
-        status: "pending_setup",
+        status: domainStatus,
+        plesk_result: pleskResult,
+        dns_status: dnsStatus,
+        ssl_result: sslResult,
         dns_instructions: dnsInfo.dnsRecords,
       },
     });
@@ -301,7 +335,7 @@ export const verifyCustomDomainDnsHandler = async (req: Request, res: Response) 
 
 /**
  * POST /api/admin/custom-domains/:id/ssl
- * إصدار شهادة SSL للنطاق المخصص — إذا الـ DNS لم يكتمل بعد، تشتغل في الخلفية تلقائياً
+ * إصدار شهادة SSL للنطاق المخصص مباشرة مع إرجاع أي تفاصيل أو أخطاء
  */
 export const installCustomDomainSslHandler = async (req: Request, res: Response) => {
   try {
@@ -315,28 +349,34 @@ export const installCustomDomainSslHandler = async (req: Request, res: Response)
       });
     }
 
-    // نعيد تشغيل الفاحص الكامل (website + DNS + SSL) في الخلفية
-    startDomainBackgroundSetup(
-      client._id.toString(),
-      client.custom_domain,
-      client.subdomain,
-    );
+    const dnsCheck = await verifyDomainDns(client.custom_domain);
+    if (!dnsCheck.pointed) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot issue SSL for "${client.custom_domain}". The domain does not point to this server (${dnsCheck.expectedIp}) yet.`,
+        current_ips: dnsCheck.currentIps,
+        expected_ip: dnsCheck.expectedIp,
+      });
+    }
+
+    console.log(`[CustomDomain] Issuing SSL for ${client.custom_domain}...`);
+    const sslResult = await installDomainSsl(client.custom_domain);
+    client.custom_domain_ssl = true;
+    client.custom_domain_status = "active";
+    client.custom_domain_verified_at = new Date();
+    await client.save();
 
     return res.json({
       success: true,
-      message:
-        "SSL setup started in the background. The certificate will be issued automatically once DNS is verified.",
-      data: {
-        domain: client.custom_domain,
-        status: client.custom_domain_status,
-        ssl_status: "pending_background",
-      },
+      message: `SSL certificate installed successfully for ${client.custom_domain}`,
+      data: sslResult,
     });
   } catch (err: any) {
     console.error("❌ Install custom domain SSL error:", err);
     return res.status(500).json({
       success: false,
-      message: err.message || "Server error installing custom domain SSL",
+      message: `Plesk SSL installation failed: ${err.message}`,
+      error: err.message,
     });
   }
 };

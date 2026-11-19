@@ -219,10 +219,14 @@ export async function createCustomDomainWebsite(
   const wwwRoot = `${subdomain}.${parentDomain}`;
 
   if (!isPleskReady()) {
-    console.log(
-      `🧪 [DEV] Simulated website creation: ${cleanDomain} -> www-root: ${wwwRoot}`,
-    );
-    return { success: true, simulated: true, domain: cleanDomain, wwwRoot };
+    const { host, apiKey } = getPleskConfig();
+    const reason = !apiKey
+      ? "PLESK_API_KEY is not set or empty in .env"
+      : !host
+      ? "PLESK_HOST is not set or empty in .env"
+      : `PLESK_HOST is "${host}" (must not be localhost)`;
+    console.error(`❌ [Plesk] Cannot connect to Plesk: ${reason}`);
+    throw new Error(`Plesk configuration error: ${reason}`);
   }
 
   console.log(
@@ -325,8 +329,14 @@ export async function installDomainSsl(domain: string): Promise<any> {
   const cleanDomain = normalizeDomainName(domain);
 
   if (!isPleskReady()) {
-    console.log(`🧪 [DEV] Simulated SSL install for: ${cleanDomain}`);
-    return { success: true, simulated: true };
+    const { host, apiKey } = getPleskConfig();
+    const reason = !apiKey
+      ? "PLESK_API_KEY is not set or empty in .env"
+      : !host
+      ? "PLESK_HOST is not set or empty in .env"
+      : `PLESK_HOST is "${host}" (must not be localhost)`;
+    console.error(`❌ [Plesk] Cannot connect to Plesk: ${reason}`);
+    throw new Error(`Plesk configuration error: ${reason}`);
   }
 
   console.log(`[Plesk] Issuing SSL for: ${cleanDomain}`);
