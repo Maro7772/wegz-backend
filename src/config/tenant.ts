@@ -232,70 +232,8 @@ export interface ResolveTenantOptions {
   fullUrl?: string;
 }
 
-/**
- * يبحث عن الـ tenant في قاعدة البيانات الرئيسية (Master DB):
- * 1. بمطابقة IClient.subdomain (المقطع الأول: "acme")
- * 2. أو بمطابقة IClient.subdomain_url (الرابط بالكامل: "https://acme.wegz.org")
- * 3. أو بمطابقة الـ Host مع subdomain_url
- */
-export async function resolveTenant(
-  options: ResolveTenantOptions,
-): Promise<TenantInfo | null> {
-  const Client = await getClientLookupModel();
-
-  const queries: any[] = [];
-
-  if (options.subdomain) {
-    queries.push({ subdomain: options.subdomain.toLowerCase().trim() });
-  }
-
-  if (options.host) {
-    const cleanHost = options.host.split(":")[0].toLowerCase().trim();
-    const hostWithoutWww = cleanHost.startsWith("www.")
-      ? cleanHost.slice(4)
-      : cleanHost;
-
-    // 1. مطابقة مباشرة مع custom_domain في جدول Clients (مثل sss.net أو www.sss.net)
-    queries.push({ custom_domain: cleanHost });
-    queries.push({ custom_domain: hostWithoutWww });
-
-    // 2. مطابقة مع الروابط المسجلة
-    queries.push({
-      subdomain_url: new RegExp(`^https?://${cleanHost}(/.*)?$`, "i"),
-    });
-    queries.push({
-      backend_url: new RegExp(`^https?://${cleanHost}(/.*)?$`, "i"),
-    });
-  }
-
-  if (options.origin) {
-    try {
-      const url = new URL(options.origin);
-      const originHost = url.hostname.toLowerCase();
-      const originWithoutWww = originHost.startsWith("www.")
-        ? originHost.slice(4)
-        : originHost;
-
-      queries.push({ custom_domain: originHost });
-      queries.push({ custom_domain: originWithoutWww });
-      queries.push({
-        subdomain_url: new RegExp(`^https?://${originHost}(/.*)?$`, "i"),
-      });
-    } catch {}
-  }
-
-  if (options.fullUrl) {
-    queries.push({ subdomain_url: options.fullUrl.trim() });
-  }
-
-  if (queries.length === 0) return null;
-
-  const client = await Client.findOne({ $or: queries }).lean();
-  if (!client) return null;
-
-  // استخراج اسم الداتابيز: لو db_name مش محدد نستخدم البادئة الافتراضية
+function formatTenantDoc(client: any): TenantInfo {
   const dbName = client.db_name || `sc_${client._id.toString()}`;
-
   return {
     clientId: client._id.toString(),
     subdomain: client.subdomain,
@@ -311,6 +249,89 @@ export async function resolveTenant(
     payment_amount: client.payment_amount,
     custom_domain: client.custom_domain,
   };
+}
+
+/**
+ * يبحث عن الـ tenant في قاعدة البيانات الرئيسية (Master DB):
+ * 1. بمطابقة IClient.subdomain (المقطع الأول: "acme") بأعلى أولوية
+ * 2. أو بمطابقة IClient.subdomain_url (الرابط بالكامل: "https://acme.wegz.org")
+ * 3. أو بمطابقة الـ Host مع custom_domain
+ */
+export async function resolveTenant(
+  options: ResolveTenantOptions,
+): Promise<TenantInfo | null> {
+  const Client = await getClientLookupModel();
+
+  // 1. الأولوية القصوى: إذا تم تحديد الـ subdomain صراحة
+  if (options.subdomain) {
+    const cleanSub = options.subdomain.toLowerCase().trim();
+    const client = await Client.findOne({ subdomain: cleanSub }).lean();
+    if (client) {
+      return formatTenantDoc(client);
+    }
+  }
+
+  // 2. مطابقة الـ Host والـ Custom Domain (مع استبعاد نطاقات السيرفر المركزية)
+  const sharedHosts = [
+    "bcknd.wegz.org",
+    "backend.wegz.org",
+    "superback.wegz.org",
+    "super.wegz.org",
+    "api.wegz.org",
+    "wegz.org",
+  ];
+
+  const queries: any[] = [];
+
+  if (options.host) {
+    const cleanHost = options.host.split(":")[0].toLowerCase().trim();
+    const hostWithoutWww = cleanHost.startsWith("www.")
+      ? cleanHost.slice(4)
+      : cleanHost;
+
+    if (!sharedHosts.includes(cleanHost)) {
+      // مطابقة مباشرة مع custom_domain في جدول Clients (مثل sss.net أو www.sss.net)
+      queries.push({ custom_domain: cleanHost });
+      queries.push({ custom_domain: hostWithoutWww });
+
+      // مطابقة مع الروابط المسجلة
+      queries.push({
+        subdomain_url: new RegExp(`^https?://${cleanHost}(/.*)?$`, "i"),
+      });
+      queries.push({
+        backend_url: new RegExp(`^https?://${cleanHost}(/.*)?$`, "i"),
+      });
+    }
+  }
+
+  if (options.origin) {
+    try {
+      const url = new URL(options.origin);
+      const originHost = url.hostname.toLowerCase();
+      const originWithoutWww = originHost.startsWith("www.")
+        ? originHost.slice(4)
+        : originHost;
+
+      if (!sharedHosts.includes(originHost)) {
+        queries.push({ custom_domain: originHost });
+        queries.push({ custom_domain: originWithoutWww });
+        queries.push({
+          subdomain_url: new RegExp(`^https?://${originHost}(/.*)?$`, "i"),
+        });
+      }
+    } catch {}
+  }
+
+  if (options.fullUrl) {
+    queries.push({ subdomain_url: options.fullUrl.trim() });
+  }
+
+  if (queries.length === 0) return null;
+
+  const client = await Client.findOne({ $or: queries }).lean();
+  if (!client) return null;
+
+  return formatTenantDoc(client);
 }
 
 // ── Tenant DB Connection Manager ───────────────────────────────────────────

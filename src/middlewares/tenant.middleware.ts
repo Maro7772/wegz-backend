@@ -88,7 +88,18 @@ function cleanSubdomainSegment(segment: string): string | null {
   }
 
   // تجاهل النطاقات المحجوزة
-  const reserved = ["www", "api", "admin", "super", "superback", "mail", "ftp", "cpanel"];
+  const reserved = [
+    "www",
+    "api",
+    "admin",
+    "super",
+    "superback",
+    "bcknd",
+    "backend",
+    "mail",
+    "ftp",
+    "cpanel",
+  ];
   if (reserved.includes(clean)) {
     return null;
   }
