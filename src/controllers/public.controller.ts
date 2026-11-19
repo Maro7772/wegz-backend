@@ -8,9 +8,21 @@ import { Testimonials } from "../models/sections/testimonials.model.js";
 import { Contact } from "../models/sections/contact.model.js";
 import { Footer } from "../models/sections/footer.model.js";
 import { Theme } from "../models/Theme.js";
+import { getMasterThemeModel } from "../config/tenant.js";
 
-export const getLanding = async (_req: Request, res: Response) => {
+export const getLanding = async (req: Request, res: Response) => {
   try {
+    const models = req.tenantModels;
+    const AnnouncementModel = (models?.Announcement || Announcement) as any;
+    const HeaderModel = (models?.Header || Header) as any;
+    const HeroModel = (models?.Hero || Hero) as any;
+    const InfoModel = (models?.Info || Info) as any;
+    const Info2Model = (models?.Info2 || Info2) as any;
+    const TestimonialsModel = (models?.Testimonials || Testimonials) as any;
+    const ContactModel = (models?.Contact || Contact) as any;
+    const FooterModel = (models?.Footer || Footer) as any;
+    const ThemeModel = (models?.Theme || Theme) as any;
+
     const [
       announcement,
       header,
@@ -20,18 +32,43 @@ export const getLanding = async (_req: Request, res: Response) => {
       testimonials,
       contact,
       footer,
-      activeTheme,
+      activeThemeDoc,
     ] = await Promise.all([
-      Announcement.findOne({ isVisible: true }).lean(),
-      Header.findOne({ isVisible: true }).lean(),
-      Hero.findOne({ isVisible: true }).lean(),
-      Info.findOne({ isVisible: true }).lean(),
-      Info2.findOne({ isVisible: true }).lean(),
-      Testimonials.findOne({ isVisible: true }).lean(),
-      Contact.findOne({ isVisible: true }).lean(),
-      Footer.findOne({ isVisible: true }).lean(),
-      Theme.findOne({ isActive: true }).lean(), // ← بنجيب الثيم النشط
+      AnnouncementModel.findOne({ isVisible: true }).sort({ createdAt: -1 }).lean(),
+      HeaderModel.findOne({ isVisible: true }).sort({ createdAt: -1 }).lean(),
+      HeroModel.findOne({ isVisible: true }).sort({ createdAt: -1 }).lean(),
+      InfoModel.findOne({ isVisible: true }).sort({ createdAt: -1 }).lean(),
+      Info2Model.findOne({ isVisible: true }).sort({ createdAt: -1 }).lean(),
+      TestimonialsModel.findOne({ isVisible: true }).sort({ createdAt: -1 }).lean(),
+      ContactModel.findOne({ isVisible: true }).sort({ createdAt: -1 }).lean(),
+      FooterModel.findOne({ isVisible: true }).sort({ createdAt: -1 }).lean(),
+      ThemeModel.findOne({ isActive: true }).lean(),
     ]);
+
+    let activeTheme = activeThemeDoc;
+    if (!activeTheme) {
+      activeTheme = await ThemeModel.findOne().lean();
+    }
+
+    let themeName = activeTheme?.name;
+    let themeMode = activeTheme?.activeMode || "light";
+
+    if (!themeName) {
+      try {
+        const MasterTheme = await getMasterThemeModel();
+        const defaultMasterTheme = await MasterTheme.findOne({
+          status: { $ne: "inactive" },
+        })
+          .sort({ order: 1, createdAt: 1 })
+          .lean();
+        if (defaultMasterTheme) {
+          themeName = defaultMasterTheme.name;
+          themeMode = defaultMasterTheme.defaultMode || "light";
+        }
+      } catch {
+        // Fallback
+      }
+    }
 
     // نفلتر اللينكات المفعّلة بس جوه الـ header، ومرتبة بالـ order
     const cleanedHeader = header
@@ -54,8 +91,8 @@ export const getLanding = async (_req: Request, res: Response) => {
       : null;
 
     res.json({
-      theme: activeTheme?.name || "Theme 1",
-      mode: activeTheme?.activeMode || "light",
+      theme: themeName || "Theme 1",
+      mode: themeMode,
       sections: {
         announcement,
         header: cleanedHeader,

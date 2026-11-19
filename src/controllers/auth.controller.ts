@@ -10,6 +10,7 @@ function isBcryptHash(value: string): boolean {
 // POST /api/auth/register
 export const register = async (req: Request, res: Response) => {
   try {
+    const UserModel = (req.tenantModels?.User || User) as any;
     const { name, email, phone, password } = req.body;
 
     if (!name || !email || !phone || !password) {
@@ -26,7 +27,7 @@ export const register = async (req: Request, res: Response) => {
 
     const normalizedEmail = String(email).toLowerCase().trim();
 
-    const exists = await User.findOne({ email: normalizedEmail });
+    const exists = await UserModel.findOne({ email: normalizedEmail });
     if (exists) {
       return res.status(409).json({ message: "Email already in use" });
     }
@@ -34,7 +35,7 @@ export const register = async (req: Request, res: Response) => {
     const hashed = await bcrypt.hash(password, 10);
 
     // الـ role دايماً "user" - مش بناخده من الـ body عشان محدش يسجل نفسه admin
-    const user = await User.create({
+    const user = await UserModel.create({
       name,
       email: normalizedEmail,
       phone,
@@ -69,12 +70,13 @@ export const register = async (req: Request, res: Response) => {
 
 export const login = async (req: Request, res: Response) => {
   try {
+    const UserModel = (req.tenantModels?.User || User) as any;
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ message: "email and password required" });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await UserModel.findOne({ email: email.toLowerCase() });
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -122,7 +124,8 @@ export const login = async (req: Request, res: Response) => {
 // GET /api/auth/me
 export const me = async (req: any, res: Response) => {
   try {
-    const user = await User.findById(req.user.id).select("-password");
+    const UserModel = (req.tenantModels?.User || User) as any;
+    const user = await UserModel.findById(req.user.id).select("-password");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -135,6 +138,7 @@ export const me = async (req: any, res: Response) => {
 // PATCH /api/auth/me
 export const updateMe = async (req: any, res: Response) => {
   try {
+    const UserModel = (req.tenantModels?.User || User) as any;
     const { name, email, phone } = req.body;
     const updates: any = {};
 
@@ -148,7 +152,7 @@ export const updateMe = async (req: any, res: Response) => {
 
     // نتأكد إن الـ email مش مستخدمين
     if (updates.email) {
-      const conflict = await User.findOne({
+      const conflict = await UserModel.findOne({
         _id: { $ne: req.user.id },
         email: updates.email,
       });
@@ -158,7 +162,7 @@ export const updateMe = async (req: any, res: Response) => {
       }
     }
 
-    const user = await User.findByIdAndUpdate(req.user.id, updates, {
+    const user = await UserModel.findByIdAndUpdate(req.user.id, updates, {
       new: true,
       runValidators: true,
     }).select("-password");
@@ -176,6 +180,7 @@ export const updateMe = async (req: any, res: Response) => {
 // PATCH /api/auth/change-password
 export const changePassword = async (req: any, res: Response) => {
   try {
+    const UserModel = (req.tenantModels?.User || User) as any;
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
@@ -190,7 +195,7 @@ export const changePassword = async (req: any, res: Response) => {
         .json({ message: "New password must be at least 6 characters" });
     }
 
-    const user = await User.findById(req.user.id);
+    const user = await UserModel.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }

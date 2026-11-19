@@ -173,6 +173,13 @@ export async function tenantMiddleware(
     req.tenantModels = tenantModels;
 
     // 5. تشغيل الـ request داخل سياق AsyncLocalStorage لعزل البيانات بالكامل
+    // استخدام enterWith يضمن بقاء السياق حتى عبر مسارات Express 5 غير المتزامنة (async router)
+    tenantStorage.enterWith({
+      tenant,
+      connection: tenantConnection,
+      models: tenantModels,
+    });
+
     tenantStorage.run(
       {
         tenant,

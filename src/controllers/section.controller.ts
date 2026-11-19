@@ -1,5 +1,15 @@
 import { Request, Response } from "express";
-import { sectionMap, isValidSection } from "../utils/sectionMap.js";
+import { Model } from "mongoose";
+import { sectionMap, isValidSection, type SectionType } from "../utils/sectionMap.js";
+import { buildSectionMap } from "../config/tenantModels.js";
+
+const getSectionModel = (req: Request, sectionType: string): Model<any> => {
+  if (req.tenantModels) {
+    const map = buildSectionMap(req.tenantModels) as Record<string, Model<any>>;
+    return map[sectionType] || sectionMap[sectionType];
+  }
+  return sectionMap[sectionType];
+};
 
 // helper: يحول الملفات المرفوعة لـ URLs ويحطها في الـ body
 const mergeUploadedFiles = (body: any, files: any) => {
@@ -63,7 +73,7 @@ export const createSection = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid section type" });
     }
 
-    const Model = sectionMap[sectionType];
+    const Model = getSectionModel(req, sectionType);
     const files = req.files as Express.Multer.File[] | undefined;
     const body = mergeUploadedFiles(req.body, files);
 
@@ -97,7 +107,7 @@ export const getAllSections = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid section type" });
     }
 
-    const Model = sectionMap[sectionType];
+    const Model = getSectionModel(req, sectionType);
     const docs = await Model.find().sort({ createdAt: -1 });
     res.json({ data: docs });
   } catch (err: any) {
@@ -114,7 +124,7 @@ export const getSectionById = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid section type" });
     }
 
-    const Model = sectionMap[sectionType];
+    const Model = getSectionModel(req, sectionType);
     const doc = await Model.findById(id);
     if (!doc)
       return res.status(404).json({ message: `${sectionType} not found` });
@@ -134,7 +144,7 @@ export const updateSection = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid section type" });
     }
 
-    const Model = sectionMap[sectionType];
+    const Model = getSectionModel(req, sectionType);
     const files = req.files as Express.Multer.File[] | undefined;
     const body = mergeUploadedFiles(req.body, files);
 
@@ -172,7 +182,7 @@ export const deleteSection = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid section type" });
     }
 
-    const Model = sectionMap[sectionType];
+    const Model = getSectionModel(req, sectionType);
     const doc = await Model.findByIdAndDelete(id);
     if (!doc)
       return res.status(404).json({ message: `${sectionType} deleted` });

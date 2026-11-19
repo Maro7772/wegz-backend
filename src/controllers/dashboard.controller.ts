@@ -11,8 +11,18 @@ import { Theme } from "../models/Theme.js";
 
 // GET /api/admin/dashboard/sections
 // بترجّع كل السكاشن بكل النسخ، عشان الداشبورد يعرضها مرة واحدة
-export const getAllSections = async (_req: Request, res: Response) => {
+export const getAllSections = async (req: Request, res: Response) => {
   try {
+    const models = req.tenantModels;
+    const AnnouncementModel = (models?.Announcement || Announcement) as any;
+    const HeaderModel = (models?.Header || Header) as any;
+    const HeroModel = (models?.Hero || Hero) as any;
+    const InfoModel = (models?.Info || Info) as any;
+    const Info2Model = (models?.Info2 || Info2) as any;
+    const TestimonialsModel = (models?.Testimonials || Testimonials) as any;
+    const ContactModel = (models?.Contact || Contact) as any;
+    const FooterModel = (models?.Footer || Footer) as any;
+
     const [
       announcements,
       headers,
@@ -23,14 +33,14 @@ export const getAllSections = async (_req: Request, res: Response) => {
       contacts,
       footers,
     ] = await Promise.all([
-      Announcement.find().sort({ createdAt: -1 }),
-      Header.find().sort({ createdAt: -1 }),
-      Hero.find().sort({ createdAt: -1 }),
-      Info.find().sort({ createdAt: -1 }),
-      Info2.find().sort({ createdAt: -1 }),
-      Testimonials.find().sort({ createdAt: -1 }),
-      Contact.find().sort({ createdAt: -1 }),
-      Footer.find().sort({ createdAt: -1 }),
+      AnnouncementModel.find().sort({ createdAt: -1 }),
+      HeaderModel.find().sort({ createdAt: -1 }),
+      HeroModel.find().sort({ createdAt: -1 }),
+      InfoModel.find().sort({ createdAt: -1 }),
+      Info2Model.find().sort({ createdAt: -1 }),
+      TestimonialsModel.find().sort({ createdAt: -1 }),
+      ContactModel.find().sort({ createdAt: -1 }),
+      FooterModel.find().sort({ createdAt: -1 }),
     ]);
 
     res.json({
@@ -50,8 +60,19 @@ export const getAllSections = async (_req: Request, res: Response) => {
   }
 };
 
-export const getCounts = async (_req: Request, res: Response) => {
+export const getCounts = async (req: Request, res: Response) => {
   try {
+    const models = req.tenantModels;
+    const AnnouncementModel = (models?.Announcement || Announcement) as any;
+    const HeaderModel = (models?.Header || Header) as any;
+    const HeroModel = (models?.Hero || Hero) as any;
+    const InfoModel = (models?.Info || Info) as any;
+    const Info2Model = (models?.Info2 || Info2) as any;
+    const TestimonialsModel = (models?.Testimonials || Testimonials) as any;
+    const ContactModel = (models?.Contact || Contact) as any;
+    const FooterModel = (models?.Footer || Footer) as any;
+    const ThemeModel = (models?.Theme || Theme) as any;
+
     const [
       announcement,
       header,
@@ -63,15 +84,15 @@ export const getCounts = async (_req: Request, res: Response) => {
       footer,
       themes,
     ] = await Promise.all([
-      Announcement.countDocuments(),
-      Header.countDocuments(),
-      Hero.countDocuments(),
-      Info.countDocuments(),
-      Info2.countDocuments(),
-      Testimonials.countDocuments(),
-      Contact.countDocuments(),
-      Footer.countDocuments(),
-      Theme.countDocuments(),
+      AnnouncementModel.countDocuments(),
+      HeaderModel.countDocuments(),
+      HeroModel.countDocuments(),
+      InfoModel.countDocuments(),
+      Info2Model.countDocuments(),
+      TestimonialsModel.countDocuments(),
+      ContactModel.countDocuments(),
+      FooterModel.countDocuments(),
+      ThemeModel.countDocuments(),
     ]);
 
     const total =

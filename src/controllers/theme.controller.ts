@@ -8,9 +8,10 @@ import { getMasterThemeModel } from "../config/tenant.js";
  * جلب جميع الثيمات من Super Admin (Master DB) فقط
  * وتحديد الثيم الذي اختاره العميل كـ isActive: true، والباقي false.
  */
-export const getAllThemes = async (_req: Request, res: Response) => {
+export const getAllThemes = async (req: Request, res: Response) => {
   try {
     const MasterTheme = await getMasterThemeModel();
+    const ThemeModel = (req.tenantModels?.Theme || Theme) as any;
 
     // 1. جلب ثيمات السوبر أدمن من Master DB فقط
     let masterThemes = await MasterTheme.find({ status: { $ne: "inactive" } })
@@ -49,9 +50,9 @@ export const getAllThemes = async (_req: Request, res: Response) => {
     }
 
     // 2. فحص الثيم المختار حالياً عند الـ tenant في قاعدة بياناته
-    let currentTenantTheme = await Theme.findOne({ isActive: true }).lean();
+    let currentTenantTheme = await ThemeModel.findOne({ isActive: true }).lean();
     if (!currentTenantTheme) {
-      currentTenantTheme = await Theme.findOne().lean();
+      currentTenantTheme = await ThemeModel.findOne().lean();
     }
 
     // التحقق مما إذا كان الثيم المسجل عند العميل هو أحد ثيمات السوبر أدمن المعتمدة
@@ -66,8 +67,8 @@ export const getAllThemes = async (_req: Request, res: Response) => {
     if (!isMatchingMaster && masterThemes.length > 0) {
       const first = masterThemes[0];
       try {
-        await Theme.deleteMany({});
-        currentTenantTheme = await Theme.create({
+        await ThemeModel.deleteMany({});
+        currentTenantTheme = await ThemeModel.create({
           name: first.name,
           description: first.description || "",
           isActive: true,
@@ -115,6 +116,7 @@ export const getThemeById = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim();
     const MasterTheme = await getMasterThemeModel();
+    const ThemeModel = (req.tenantModels?.Theme || Theme) as any;
     let masterTheme = null;
 
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -130,7 +132,7 @@ export const getThemeById = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Theme not found" });
     }
 
-    const currentTenantTheme = await Theme.findOne().lean();
+    const currentTenantTheme = await ThemeModel.findOne().lean();
     const isSelected = currentTenantTheme?.name === masterTheme.name;
 
     res.json({
@@ -163,6 +165,7 @@ export const activateTheme = async (req: Request, res: Response) => {
     const id = String(req.params.id).trim();
 
     const MasterTheme = await getMasterThemeModel();
+    const ThemeModel = (req.tenantModels?.Theme || Theme) as any;
     let masterTheme = null;
 
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -182,11 +185,11 @@ export const activateTheme = async (req: Request, res: Response) => {
     }
 
     // مسح القديم
-    await Theme.deleteMany({});
+    await ThemeModel.deleteMany({});
 
     // إنشاء وحفظ المختار فقط
     const chosenMode = masterTheme.defaultMode || "light";
-    const tenantTheme = await Theme.create({
+    const tenantTheme = await ThemeModel.create({
       name: masterTheme.name,
       description: masterTheme.description || "",
       isActive: true,
@@ -227,7 +230,8 @@ export const changeMode = async (req: Request, res: Response) => {
       });
     }
 
-    let tenantTheme = await Theme.findOne();
+    const ThemeModel = (req.tenantModels?.Theme || Theme) as any;
+    let tenantTheme = await ThemeModel.findOne();
     if (!tenantTheme) {
       return res.status(404).json({ message: "No active theme found for this tenant" });
     }
