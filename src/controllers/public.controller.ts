@@ -9,6 +9,7 @@ import { Contact } from "../models/sections/contact.model.js";
 import { Footer } from "../models/sections/footer.model.js";
 import { Theme } from "../models/Theme.js";
 import { getMasterThemeModel } from "../config/tenant.js";
+import { sendContactEmail } from "../services/mail.service.js";
 
 export const getLanding = async (req: Request, res: Response) => {
   try {
@@ -106,5 +107,71 @@ export const getLanding = async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+export const sendContactMessage = async (req: Request, res: Response) => {
+  try {
+    const models = req.tenantModels;
+    const ContactModel = (models?.Contact || Contact) as any;
+
+    // البحث عن إيميل التواصل المخصص لهذا المتجر من سكشن contact
+    let contact = await ContactModel.findOne({ isVisible: true }).sort({ createdAt: -1 }).lean();
+    if (!contact || !contact.email) {
+      contact = await ContactModel.findOne({ email: { $exists: true, $ne: "" } }).sort({ createdAt: -1 }).lean();
+    }
+
+    const recipientEmail = contact?.email?.trim();
+    if (!recipientEmail) {
+      return res.status(404).json({
+        success: false,
+        message: "No recipient email configured in the landing contact section",
+      });
+    }
+
+    // استلام الرسالة بالكامل من الـ API
+    const body = req.body || {};
+    const message = body.message ?? body.msg ?? body.text;
+
+    if (!message || (typeof message === "string" && !message.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "message is required",
+      });
+    }
+
+    const finalMessage = typeof message === "string" ? message.trim() : String(message);
+
+    const tenantSubdomain = req.tenant?.subdomain;
+    const hostHeader = req.headers.host ? req.headers.host.split(":")[0] : undefined;
+    const tenantIdentifier = tenantSubdomain ? `${tenantSubdomain}.wegz.org` : hostHeader;
+
+    // إرسال الإيميل بتصميم نظيف واحترافي
+    await sendContactEmail({
+      to: recipientEmail,
+      message: finalMessage,
+      replyTo: typeof body.email === "string" && body.email.trim() ? body.email.trim() : undefined,
+      subject:
+        typeof body.subject === "string" && body.subject.trim()
+          ? body.subject.trim()
+          : `New Message from ${tenantIdentifier || "Landing Page"}`,
+      senderName: typeof body.name === "string" ? body.name.trim() : undefined,
+      senderEmail: typeof body.email === "string" ? body.email.trim() : undefined,
+      phone: typeof body.phone === "string" ? body.phone.trim() : undefined,
+      extraFields: body,
+      tenant: tenantIdentifier,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Message sent successfully",
+    });
+  } catch (err: any) {
+    console.error("Error sending contact message:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send message",
+      error: err.message,
+    });
   }
 };

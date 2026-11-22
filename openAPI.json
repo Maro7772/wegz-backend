@@ -1148,6 +1148,57 @@
           }
         }
       }
+    },
+    "/api/public/contact": {
+      "post": {
+        "tags": ["Public"],
+        "summary": "إرسال رسالة تواصل إلى بريد المتجر/السكشن",
+        "description": "يرسل الرسالة المستلمة إلى الإيميل المسجل في سكشن contact للمتجر الحالي بتصميم نظيف واحترافي",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["message"],
+                "properties": {
+                  "message": { "type": "string", "example": "السلام عليكم، أريد الاستفسار عن تفاصيل الباقة..." },
+                  "name": { "type": "string", "example": "أحمد علي" },
+                  "email": { "type": "string", "format": "email", "example": "ahmed@example.com" },
+                  "phone": { "type": "string", "example": "+20123456789" },
+                  "subject": { "type": "string", "example": "استفسار بخصوص الخدمة" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "تم إرسال الرسالة بنجاح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Message sent successfully" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "طلب غير صالح (الرسالة مفقودة)"
+          },
+          "404": {
+            "description": "إيميل المتجر غير محدد في سكشن التواصل"
+          },
+          "500": {
+            "description": "فشل في إرسال الرسالة عبر البريد"
+          }
+        }
+      }
     }
   }
 }
