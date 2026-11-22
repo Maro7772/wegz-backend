@@ -168,8 +168,8 @@ export const assignCustomDomainHandler = async (req: Request, res: Response) => 
       client.custom_domain_verified_at = undefined;
     }
 
-    // 1. إنشاء أو تحديث الـ Website في Plesk مباشرة وتوجيهه لمجلد wegz.org الرئيسي (httpdocs/dist)
-    console.log(`[CustomDomain] Creating/updating website in Plesk for ${cleanDomain} (www-root: httpdocs/dist)...`);
+    // 1. إنشاء أو تحديث الـ Website في Plesk مباشرة وتوجيهه لمجلد wegz.org الرئيسي (httpdocs)
+    console.log(`[CustomDomain] Creating/updating website in Plesk for ${cleanDomain} (www-root: httpdocs)...`);
     let pleskResult: any = null;
     try {
       pleskResult = await createCustomDomainWebsite(cleanDomain);

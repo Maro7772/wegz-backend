@@ -220,8 +220,9 @@ export async function createCustomDomainWebsite(
 ): Promise<any> {
   const { parentDomain } = getPleskConfig();
   const cleanDomain = normalizeDomainName(customDomain);
-  // التوجيه لنفس مجلد الفرونت إند كما في wegz.org (/httpdocs/dist)
-  const wwwRoot = options.wwwRoot || process.env.CUSTOM_DOMAIN_WWW_ROOT || "httpdocs/dist";
+  // التوجيه لنفس مجلد الفرونت إند كما في wegz.org (/httpdocs)
+  const wwwRoot = options.wwwRoot || process.env.CUSTOM_DOMAIN_WWW_ROOT || "httpdocs";
+  const docRoot = wwwRoot.startsWith("/") ? wwwRoot : `/${wwwRoot}`;
   const nodeVersion = options.nodeVersion || process.env.NODE_JS_VERSION || "22.23.5";
 
   if (!isPleskReady()) {
@@ -279,7 +280,7 @@ export async function createCustomDomainWebsite(
       nodeVersion,
     ]);
 
-    // ضبط إعدادات Node.js (App Root: /httpdocs, Document Root: /httpdocs/dist)
+    // ضبط إعدادات Node.js (App Root: /httpdocs, Document Root: docRoot)
     try {
       await executePleskCli("extension", [
         "--call",
@@ -290,7 +291,7 @@ export async function createCustomDomainWebsite(
         "-app-root",
         "/httpdocs",
         "-doc-root",
-        "/httpdocs/dist",
+        docRoot,
         "-app-file",
         "index.html",
         "-app-mode",

@@ -49,7 +49,7 @@ export function startDomainBackgroundSetup(
       if (!websiteCreated) {
         try {
           console.log(
-            `📦 [Background] Creating/updating website "${cleanDomain}" -> www-root: httpdocs/dist...`,
+            `📦 [Background] Creating/updating website "${cleanDomain}" -> www-root: httpdocs...`,
           );
           await createCustomDomainWebsite(cleanDomain);
           websiteCreated = true;
